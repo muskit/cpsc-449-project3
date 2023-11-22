@@ -1,5 +1,3 @@
-import redis
-
 from pydantic import BaseModel
 from fastapi import FastAPI, HTTPException, status
 from fastapi import Depends
