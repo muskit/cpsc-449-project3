@@ -148,8 +148,7 @@ def init_db_cmd(
             os.remove(db_path)
         else:
             print("Aborting...")
-            exit(1)
-
+            return
     conn = sqlite3.connect(db_path)
 
     c = conn.cursor()
