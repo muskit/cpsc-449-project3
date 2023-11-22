@@ -7,6 +7,9 @@ LITEFS_VERSION=0.5.4
 KRAKEND_INSTALL_PATH=./run/bin/krakend
 KRAKEND_VERSION=2.4.3
 
+REDIS_INSTALL_PATH=./run/bin/redis-server
+REDIS_VERSION=7.2.3
+
 GOOS=linux
 GOARCH=
 	
@@ -67,6 +70,24 @@ install_krakend() {
 	rm -r "${dstDir}"
 
 	echo "Installed krakend to ${KRAKEND_INSTALL_PATH}" >&2
+}
+
+install_redis() {
+	REDIS_URL=
+	REDIS_URL+="https://github.com/redis/redis/archive"
+	REDIS_URL+="/${REDIS_VERSION}.tar.gz"
+
+	echo "Downloading redis from ${REDIS_URL}..." >&2
+	
+	dstDir=$(mktemp -d)
+	wget -qO- "${REDIS_URL}" | tar xz -C "${dstDir}"
+	
+	mkdir -p "$(dirname "${REDIS_INSTALL_PATH}")"
+	install -m 755 "${dstDir}/usr/bin/redis-server" "${REDIS_INSTALL_PATH}"
+	
+	rm -r "${dstDir}"
+
+	echo "Installed redis to ${REDIS_INSTALL_PATH}" >&2
 }
 
 # is_installed $pname $installPath

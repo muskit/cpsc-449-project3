@@ -2,41 +2,75 @@
 
 ## Setting Up
 
-Install the following dependencies:
-
-- Python 3 w/ virtualenv
-- Krakend
-- LiteFS
-
-All of these dependencies should be in your `PATH` variable for `Procfile` to
-work.
-
-Then, install the Python dependencies:
+### If Nix is installed...
 
 ```bash
-pip install -r requirements.txt
+nix-shell
 ```
 
-## Usage
+Continue at [this step](#other-dependencies).
 
-First, if you're not already in the Nix shell, you will need to install Krakend
-and LiteFS:
+### Otherwise, if Nix is not installed...
+
+Install Krakend and LiteFS:
 
 ```bash
 ./install_deps.sh
 ```
 
-This will install Krakend and LiteFS into the `run` directory, which is
+This will install Krakend and LiteFS into the `run/bin` directory, which is
 specifically an ephemeral directory for this project.
 
-Then, start all the services:
+You will also need:
+- `ruby-foreman`
+- Python 3 with virtualenv
+
+### Other dependencies
+
+Install required Python packages into a virtual environment from `pip`:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install -r requirements.txt
+```
+
+DynamoDB Local:
+1. Download "DynamoDB local v2.x" from
+[here](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.DownloadingAndRunning.html)
+2. Extract the .jar in the archive to the project's `./run/`
+
+Other packages:
+- `redis` - make sure the server is running
+- `openjdk-19-jre-headless`
+
+## Initialization
+
+After installing necessary components, initialize the JWT keys...
+
+```bash
+./init_jwt_keys.sh
+```
+
+Start all the services...
 
 ```bash
 foreman start
 ```
 
-Then, initialize the database and JWT:
+Then, initialize the databases...
 
 ```bash
-./init.sh
+./init_dbs.sh
+```
+
+The server has now been initialized and is running.
+
+## Running
+
+If the server isn't running, assuming the above steps have been taken, the
+server can be started by running:
+
+```bash
+foreman start
 ```
