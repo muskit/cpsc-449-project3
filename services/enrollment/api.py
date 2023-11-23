@@ -5,6 +5,7 @@ from pydantic_settings import BaseSettings
 from fastapi.routing import APIRoute
 from fastapi import FastAPI, Depends, HTTPException, Request, status
 from pydantic import BaseModel
+from fastapi.responses import JSONResponse
 from internal.jwt_claims import require_x_roles, require_x_user
 
 
@@ -531,6 +532,86 @@ def delete_section(section_id: int, db: sqlite3.Connection = Depends(get_db)):
     for u in uw:
         drop_user_waitlist(u[0], section_id, db)
 '''
+
+
+# Code for Redis Endpoints
+class WaitlistItem(BaseModel):
+    user_id: int
+    section_id: int
+    position: int
+    date: str
+# Endpoint to add a user to the waitlist
+@app.post("/waitlist/")
+async def add_to_waitlist(item: WaitlistItem, redis: StrictRedis = Depends(get_redis_db)):
+    waitlist_key = f"waitlist:user_id:{item.user_id}:section_id:{item.section_id}"
+
+    # Check if the user is already in the waitlist for the sectwssion
+    if redis.exists(waitlist_key):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User is already in the waitlist for this section")
+
+    # Store additional information in a hash
+    redis.hset(waitlist_key, "position", item.position)
+    redis.hset(waitlist_key, "date", item.date)
+
+    return JSONResponse(content={"message": "User added to the waitlist"}, status_code=status.HTTP_201_CREATED)
+
+# Endpoint to retrieve the waitlist for a section => Will return every entry for a section
+@app.get("/waitlist/{section_id}", status_code=status.HTTP_200_OK)
+async def get_waitlist(section_id: int, redis: StrictRedis = Depends(get_redis_db)):
+    waitlist_keys = redis.keys(f"waitlist:user_id:*:section_id:{section_id}")
+    
+    waitlist_data = []
+    for waitlist_key in waitlist_keys:
+        user_id = int(waitlist_key.split(":")[2])
+        position = int(redis.hget(waitlist_key, "position"))
+        date = redis.hget(waitlist_key, "date")
+
+        waitlist_data.append({"user_id": user_id, "position": position, "date": date})
+
+    if len(waitlist_data) ==0:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Given Section Id doesnt exist")
+
+    return {"section_id": section_id, "waitlist": waitlist_data}
+
+
+@app.delete("/deleteFromWaitlist/{user_id}/{section_id}")
+async def delete_from_waitlist(user_id:int, section_id:int, redis: StrictRedis = Depends(get_redis_db)):
+    
+    waitlist_key = f"waitlist:user_id:{user_id}:section_id:{section_id}"
+
+    # Check if the field exists in the hash
+    if not redis.exists(waitlist_key):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Section '{section_id}' not found for user {user_id}")
+
+    deleted_position = int(redis.hget(waitlist_key, 'position'))
+    redis.delete(waitlist_key)
+    # Decrement the position for all users with position greater than the deleted position
+    waitlist_keys = redis.keys(f"waitlist:user_id:*:section_id:{section_id}")
+    for key in waitlist_keys:
+        position = int(redis.hget(key, "position"))
+        if position > deleted_position:
+            redis.hset(key, "position", position - 1)
+
+    return {"message": f"Section '{section_id}' deleted for user {user_id} from waitlist"}
+
+#To get wailtists for a user
+@app.get("/user_waitlist/{user_id}")
+async def get_user_waitlist(user_id: int, redis: StrictRedis = Depends(get_redis_db)):
+    waitlist_keys = redis.keys(f"waitlist:user_id:{user_id}:section_id:*")
+    
+    user_waitlist_data = []
+    for waitlist_key in waitlist_keys:
+        section_id = int(waitlist_key.split(":")[4])
+        position = int(redis.hget(waitlist_key, "position"))
+        date = redis.hget(waitlist_key, "date")
+
+        user_waitlist_data.append({"section_id": section_id, "position": position, "date": date})
+
+    if len(user_waitlist_data) ==0:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User Doesn't Exist")
+
+    return {"user_id": user_id, "user_waitlist": user_waitlist_data}
+    
 
 # https://fastapi.tiangolo.com/advanced/path-operation-advanced-configuration/#using-the-path-operation-function-name-as-the-operationid
 for route in app.routes:
