@@ -1,32 +1,18 @@
 import logging.config
 import boto3
 from boto3.dynamodb.conditions import Key, Attr
-from typing import Optional
-
 from pydantic_settings import BaseSettings
 from fastapi.routing import APIRoute
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException, Request
 from pydantic import BaseModel
 from internal.jwt_claims import require_x_roles, require_x_user
 
-class Settings(BaseSettings, env_file=".env", extra="ignore"):
-    database: str
-    logging_config: str
 
-def get_logger():
-    return logging.getLogger(__name__)
+app = FastAPI()
 
 # Connect to the database and logs it
 def get_db():
-    return boto3.resource('dynamodb', endpoint_url=settings.database)
-
-
-
-settings = Settings()
-app = FastAPI()
-
-logging.config.fileConfig(settings.logging_config, disable_existing_loggers=False)
-
+    return boto3.resource('dynamodb', endpoint_url = 'http://localhost:8000')
 
 @app.get("/courses")
 def list_courses(
