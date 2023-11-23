@@ -7,11 +7,9 @@ dynamodb = boto3.resource('dynamodb', endpoint_url='http://localhost:8000')
 table = dynamodb.create_table(
     TableName = 'Sections',
     KeySchema=[
-        {'AttributeName': 'course_code', 'KeyType': 'HASH'},
-        {'AttributeName': 'section_id', 'KeyType': 'RANGE'}
+        {'AttributeName': 'section_id', 'KeyType': 'HASH'}
     ],
     AttributeDefinitions=[
-        {'AttributeName': 'course_code', 'AttributeType': 'S'},
         {'AttributeName': 'section_id', 'AttributeType': 'N'}
     ],
     ProvisionedThroughput= {
@@ -24,7 +22,6 @@ table = dynamodb.create_table(
 table.wait_until_exists()
 
 class Section:
-    course_code: int
     section_id: int
     classroom: str
     capacity: int
@@ -41,11 +38,9 @@ class Section:
 table = dynamodb.create_table(
     TableName = 'Courses',
     KeySchema=[
-        {'AttributeName': 'department_name', 'KeyType': 'HASH'},
-        {'AttributeName': 'course_code', 'KeyType': 'RANGE'}
+        {'AttributeName': 'course_code', 'KeyType': 'HASH'}
     ],
     AttributeDefinitions=[
-        {'AttributeName': 'department_name', 'AttributeType': 'S'},
         {'AttributeName': 'course_code', 'AttributeType': 'S'}
     ],
     ProvisionedThroughput = {
@@ -58,7 +53,6 @@ table = dynamodb.create_table(
 table.wait_until_exists()
 
 class Course:
-    department_name: str
     course_code: str
     course_name: str
 
