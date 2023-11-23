@@ -3,7 +3,7 @@ import boto3
 from boto3.dynamodb.conditions import Key, Attr
 from pydantic_settings import BaseSettings
 from fastapi.routing import APIRoute
-from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi import FastAPI, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from internal.jwt_claims import require_x_roles, require_x_user
 
@@ -13,6 +13,11 @@ app = FastAPI()
 # Connect to the database and logs it
 def get_db():
     return boto3.resource('dynamodb', endpoint_url = 'http://localhost:8000')
+
+# Connect to Redis
+def get_redis_db():
+    redis_client = StrictRedis(host='localhost', port=6379, db=0, decode_responses=True)
+    return redis_client
 
 @app.get("/courses")
 def list_courses(
