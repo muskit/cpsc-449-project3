@@ -7,7 +7,7 @@ from fastapi import FastAPI, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
 from internal.jwt_claims import require_x_roles, require_x_user
-
+from redis import Redis
 
 app = FastAPI()
 
@@ -17,7 +17,7 @@ def get_db():
 
 # Connect to Redis
 def get_redis_db():
-    redis_client = StrictRedis(host='localhost', port=6379, db=0, decode_responses=True)
+    redis_client = Redis(host='localhost', port=6379, db=0, decode_responses=True)
     return redis_client
 
 @app.get("/courses")
@@ -542,7 +542,7 @@ class WaitlistItem(BaseModel):
     date: str
 # Endpoint to add a user to the waitlist
 @app.post("/waitlist/")
-async def add_to_waitlist(item: WaitlistItem, redis: StrictRedis = Depends(get_redis_db)):
+async def add_to_waitlist(item: WaitlistItem, redis: Redis = Depends(get_redis_db)):
     waitlist_key = f"waitlist:user_id:{item.user_id}:section_id:{item.section_id}"
 
     # Check if the user is already in the waitlist for the sectwssion
@@ -557,7 +557,7 @@ async def add_to_waitlist(item: WaitlistItem, redis: StrictRedis = Depends(get_r
 
 # Endpoint to retrieve the waitlist for a section => Will return every entry for a section
 @app.get("/waitlist/{section_id}", status_code=status.HTTP_200_OK)
-async def get_waitlist(section_id: int, redis: StrictRedis = Depends(get_redis_db)):
+async def get_waitlist(section_id: int, redis: Redis = Depends(get_redis_db)):
     waitlist_keys = redis.keys(f"waitlist:user_id:*:section_id:{section_id}")
     
     waitlist_data = []
@@ -575,7 +575,7 @@ async def get_waitlist(section_id: int, redis: StrictRedis = Depends(get_redis_d
 
 
 @app.delete("/deleteFromWaitlist/{user_id}/{section_id}")
-async def delete_from_waitlist(user_id:int, section_id:int, redis: StrictRedis = Depends(get_redis_db)):
+async def delete_from_waitlist(user_id:int, section_id:int, redis: Redis = Depends(get_redis_db)):
     
     waitlist_key = f"waitlist:user_id:{user_id}:section_id:{section_id}"
 
@@ -596,7 +596,7 @@ async def delete_from_waitlist(user_id:int, section_id:int, redis: StrictRedis =
 
 #To get wailtists for a user
 @app.get("/user_waitlist/{user_id}")
-async def get_user_waitlist(user_id: int, redis: StrictRedis = Depends(get_redis_db)):
+async def get_user_waitlist(user_id: int, redis: Redis = Depends(get_redis_db)):
     waitlist_keys = redis.keys(f"waitlist:user_id:{user_id}:section_id:*")
     
     user_waitlist_data = []

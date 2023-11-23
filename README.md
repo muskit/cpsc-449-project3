@@ -38,7 +38,9 @@ python3 -m pip install -r requirements.txt
 DynamoDB Local:
 1. Download "DynamoDB local v2.x" from
 [here](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.DownloadingAndRunning.html)
-2. Extract the .jar in the archive to the project's `./run/`
+2. From the archive, extract both `DynamoDBLocal.jar` and the `DynamoDBLocal_lib`
+folder into a new folder `dynamodb_local` at the project's root.
+(SUBJECT TO CHANGE)
 
 Other packages:
 - `redis` - make sure the server is running
@@ -46,10 +48,10 @@ Other packages:
 
 ## Initialization
 
-After installing necessary components, initialize the JWT keys...
+After installing necessary components, run the pre-start init script...
 
 ```bash
-./init_jwt_keys.sh
+./init_pre_start.sh
 ```
 
 Start all the services...
@@ -58,18 +60,18 @@ Start all the services...
 foreman start
 ```
 
-Then, initialize the databases...
+Then, in another terminal, run the post-start init script:
 
 ```bash
-./init_dbs.sh
+./init_post_start.sh
 ```
 
 The server has now been initialized and is running.
 
 ## Running
 
-If the server isn't running, assuming the above steps have been taken, the
-server can be started by running:
+If the server isn't running, assuming the above steps have been taken
+previously, the server can be started by running:
 
 ```bash
 foreman start

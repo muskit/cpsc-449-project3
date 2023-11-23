@@ -5,3 +5,4 @@ venv
 .venv
 .vscode
 __pycache__
+dynamodb-local-metadata.json
