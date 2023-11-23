@@ -56,10 +56,8 @@ class Course:
     course_code: str
     course_name: str
 
-# populate dynamo table
-table.put_item(
-    Course = Course('Computer Science', 'CPSC449', 'Web Backend Engineering').__dict__
-)
+
+
 
 # Create the Enrollment table
 table = dynamodb.create_table(

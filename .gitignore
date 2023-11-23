@@ -1,4 +1,5 @@
 /run
+/dynamodb_local/DynamoDBLocal_lib
 venv
 .env
 .venv

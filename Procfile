@@ -4,4 +4,4 @@ authentication_service: uvicorn --port $PORT services.authentication.api:app --r
 authentication_db_primary: PATH="$PATH":run/bin litefs mount --config cfg/authentication/primary.yml
 authentication_db_secondary1: PATH="$PATH":run/bin litefs mount --config cfg/authentication/secondary1.yml
 authentication_db_secondary2: PATH="$PATH":run/bin litefs mount --config cfg/authentication/secondary2.yml
-dynamodb: java -Djava.library.path=./DynamoDBLocal_lib -jar ./DynamoDBLocal.jar -sharedDb --port 8000
+dynamodb: java -Djava.library.path=./dynamodb_local/DynamoDBLocal_lib -jar ./dynamodb_local/DynamoDBLocal.jar -sharedDb -dbPath ./run/enrollment_db/ --port 8000
