@@ -21,7 +21,7 @@ from fastapi import FastAPI, Depends, HTTPException
 
 from . import database
 from .database import get_db, get_read_db, get_user_roles
-from services.models import *
+from .models import *
 
 
 app = FastAPI()
