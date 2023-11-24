@@ -72,24 +72,6 @@ install_krakend() {
 	echo "Installed krakend to ${KRAKEND_INSTALL_PATH}" >&2
 }
 
-install_redis() {
-	REDIS_URL=
-	REDIS_URL+="https://github.com/redis/redis/archive"
-	REDIS_URL+="/${REDIS_VERSION}.tar.gz"
-
-	echo "Downloading redis from ${REDIS_URL}..." >&2
-	
-	dstDir=$(mktemp -d)
-	wget -qO- "${REDIS_URL}" | tar xz -C "${dstDir}"
-	
-	mkdir -p "$(dirname "${REDIS_INSTALL_PATH}")"
-	install -m 755 "${dstDir}/usr/bin/redis-server" "${REDIS_INSTALL_PATH}"
-	
-	rm -r "${dstDir}"
-
-	echo "Installed redis to ${REDIS_INSTALL_PATH}" >&2
-}
-
 # is_installed $pname $installPath
 is_installed() {
 	local pname=$1
