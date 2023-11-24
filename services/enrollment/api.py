@@ -22,7 +22,6 @@ def get_redis_db():
 
 @app.get("/courses")
 def list_courses(
-    department_name: str,
     db: boto3.session.Session = Depends(get_db),
 ):
     courses = db.Table("Courses").scan()["Items"]
@@ -30,11 +29,10 @@ def list_courses(
 
 @app.get("/courses/{course_code}")
 def get_course(
-    department_name: str,
     course_code: str,
     db: boto3.session.Session = Depends(get_db),
 ):
-    response = db.Table('Course').query(
+    response = db.Table('Courses').query(
         KeyConditionExp = Key('course_code').eq(course_code)
     )
     return response('Items')
