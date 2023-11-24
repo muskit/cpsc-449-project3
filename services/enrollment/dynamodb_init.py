@@ -77,7 +77,8 @@ response = table.update(
                     {'AttributeName': 'course_name', 'KeyType': 'HASH'},
                 ],
                 'Projection': {
-                    'ProjectionType': 'ALL'
+                    'ProjectionType': 'INCLUDE',
+                    'NonKeyAttributes': [ 'course_name', 'department']
                 },
                 'ProvisionedThroughput': {
                     'ReadCapacityUnits': 10,
@@ -105,7 +106,8 @@ response = table.update(
                     {'AttributeName': 'course_id', 'KeyType': 'HASH'},
                 ],
                 'Projection': {
-                    'ProjectionType': 'ALL'
+                    'ProjectionType': 'INCLUDE',
+                    'NonKeyAttributes': ['course_name', 'department', 'classroom', 'capacity', 'waitlist_capacity', 'days', 'begin_time', 'end_time', 'instructor_id']
                 },
                 'ProvisionedThroughput': {
                     'ReadCapacityUnits': 10,

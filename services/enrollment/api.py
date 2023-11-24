@@ -4,10 +4,12 @@ from boto3.dynamodb.conditions import Key, Attr
 from pydantic_settings import BaseSettings
 from fastapi.routing import APIRoute
 from fastapi import FastAPI, Depends, HTTPException, Request, status
-from pydantic import BaseModel
+# from pydantic import BaseModel
 from fastapi.responses import JSONResponse
 from internal.jwt_claims import require_x_roles, require_x_user
 from redis import Redis
+
+from .models_api import *
 
 app = FastAPI()
 
@@ -24,18 +26,25 @@ def get_redis_db():
 def list_courses(
     db: boto3.session.Session = Depends(get_db),
 ):
-    courses = db.Table("Courses").scan()["Items"]
-    return {"Courses": courses}
+    table = db.Table('EnrollmentService')
+    courses = table.scan(IndexName = 'course_name_index')
+    return {'courses': courses}
+
+
 
 @app.get("/courses/{course_code}")
 def get_course(
-    course_code: str,
+    course_name: str,
     db: boto3.session.Session = Depends(get_db),
 ):
-    response = db.Table('Courses').query(
-        KeyConditionExp = Key('course_code').eq(course_code)
+    table = db.Table('EnrollmentService')
+    response = table.query(
+        TableName='EnrollmentService',
+        IndexName='course_name_index',
+        KeyConditionExpression=Key('course_name').eq(course_name)
     )
-    return response('Items')
+    return {'response': response}
+    
 '''
 @app.get("/courses/{course_id}/waitlist")
 def get_course_waitlist(
@@ -64,19 +73,22 @@ def get_course_waitlist(
 def list_sections(
     db: boto3.session.Session = Depends(get_db),
 ):
-    sections = db.Table('Sections').scan()['Items']
-    return {'Sections': sections}
+    table = db.Table('EnrollmentService')
+    courses = table.scan(IndexName = 'course_id_index')
+    return {'courses': courses}
 
 
 @app.get("/sections/{section_id}")
 def get_section(
-    section_id: int,
+    course_id: str,
     db: boto3.session.Session = Depends(get_db),
 ):
-    response = db.Table('Sections').query(
-        KeyConditionExp = Key('section_id').eq(section_id)
+    table = db.Table('EnrollmentService')
+    response = table.query(
+        IndexName='course_id_index',
+        KeyConditionExpression=Key('course_id').eq(course_id)
     )
-    return response('Items')
+    return {'response': response}
 
 
 @app.get("/sections/{section_id}/enrollments")
@@ -112,8 +124,7 @@ def list_section_waitlist(
     return ListSectionWaitlistResponse(
         waitlist=[ListSectionWaitlistItem(**dict(item)) for item in waitlist]
     )
-'''
-'''
+
 @app.get("/users/{user_id}/enrollments")
 def list_user_enrollments(
     user_id: int,
@@ -292,52 +303,36 @@ def create_enrollment(
         **dict(enrollments[0]),
         waitlist_position=waitlist_position,
     )
-
+'''
 
 @app.post("/courses")
 def add_course(
     course: AddCourseRequest,
-    db: sqlite3.Connection = Depends(get_db),
-) -> Course:
+    db: boto3.session.Session = Depends(get_db),
+):
     try:
-        row = fetch_row(
-            db,
-            """
-            INSERT INTO courses(code, name, department_id)
-            VALUES(:code, :name, :department_id)
-            RETURNING id
-            """,
-            dict(course),
+        db.Table("EnrollmentService").put_item(
+            Item=course.dict()
         )
-        assert row
-        courses = database.list_courses(db, [row["courses.id"]])
-        return courses[0]
-    except Exception:
-        raise HTTPException(status_code=409, detail=f"Failed to add course:")
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=400, detail="Unable to add course")
 
 
 @app.post("/sections")
 def add_section(
     section: AddSectionRequest,
-    db: sqlite3.Connection = Depends(get_db),
-) -> Section:
+    db: boto3.session.Session = Depends(get_db),
+):
     try:
-        row = fetch_row(
-            db,
-            """
-            INSERT INTO sections(course_id, classroom, capacity, waitlist_capacity, day, begin_time, end_time, freeze, instructor_id)
-            VALUES(:course_id, :classroom, :capacity, :waitlist_capacity, :day, :begin_time, :end_time, :freeze, :instructor_id)
-            RETURNING id
-            """,
-            dict(section),
+        db.Table("EnrollmentService").put_item(
+            Item=section.dict()
         )
-        assert row
-        sections = database.list_sections(db, [row["sections.id"]])
-        return sections[0]
-    except Exception:
-        raise HTTPException(status_code=409, detail=f"Failed to add course:")
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=400, detail="Unable to add section")
 
-
+'''
 @app.patch("/sections/{section_id}")
 def update_section(
     section_id: int,
