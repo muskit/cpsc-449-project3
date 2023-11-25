@@ -30,20 +30,22 @@ class CreateEnrollmentResponse(Enrollment):
 
 
 class AddCourseRequest(BaseModel):
-    code: str
-    name: str
-    department_id: int
+    course_id: str
+    course_name: str
+    department: str
 
 
 class AddSectionRequest(BaseModel):
-    course_id: int
+    course_id: str
+    section_id: int
     classroom: str
     capacity: int
     waitlist_capacity: int = 15
-    day: str
+    days: int
     begin_time: str
     end_time: str
     freeze: bool = False
+    deleted: bool = False
     instructor_id: int
 
 

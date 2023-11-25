@@ -9,14 +9,11 @@ from fastapi.responses import JSONResponse
 from internal.jwt_claims import require_x_roles, require_x_user
 from redis import Redis
 
+from internal.database_dynamo import get_db
+from .model_requests import *
 from .models import *
-from .models_api import *
 
 app = FastAPI()
-
-# Connect to the database and logs it
-def get_dynamo_db():
-    return boto3.resource('dynamodb', endpoint_url = 'http://localhost:8000')
 
 # Connect to Redis
 def get_redis_db():
@@ -25,26 +22,27 @@ def get_redis_db():
 
 @app.get("/courses")
 def list_courses(
-    db: boto3.session.Session = Depends(get_dynamo_db),
+    db: boto3.session.Session = Depends(get_db),
 ):
-    table = db.Table('EnrollmentService')
-    courses = table.scan(IndexName = 'course_name_index')
-    return {'courses': courses}
-
-
+    table = db.Table('Courses').scan()['Items']
+    return {'courses': table}
 
 @app.get("/courses/{course_code}")
 def get_course(
-    course_name: str,
-    db: boto3.session.Session = Depends(get_dynamo_db),
+    course_id: str,
+    db: boto3.session.Session = Depends(get_db),
 ):
-    table = db.Table('EnrollmentService')
+    table = db.Table('Courses')
     response = table.query(
-        TableName='EnrollmentService',
-        IndexName='course_name_index',
-        KeyConditionExpression=Key('course_name').eq(course_name)
+        KeyConditionExpression=Key('course_id').eq(course_id)
     )
-    return {'response': response}
+
+    items = response.get('Items',[])
+    
+    if not items:
+        raise HTTPException(status_code=404, detail="Course not found")
+    else:
+        return {'response': items}
     
 '''
 @app.get("/courses/{course_id}/waitlist")
@@ -72,34 +70,46 @@ def get_course_waitlist(
 
 @app.get("/sections")
 def list_sections(
-    db: boto3.session.Session = Depends(get_dynamo_db),
+    db: boto3.session.Session = Depends(get_db),
 ):
-    table = db.Table('EnrollmentService')
-    courses = table.scan(IndexName = 'course_id_index')
-    return {'courses': courses}
+    table = db.Table('Sections').scan()['Items']
+    return {'Sections': table}
 
 
 @app.get("/sections/{section_id}")
 def get_section(
-    course_id: str,
-    db: boto3.session.Session = Depends(get_dynamo_db),
+    section_id: int,
+    db: boto3.session.Session = Depends(get_db),
 ):
-    table = db.Table('EnrollmentService')
+    table = db.Table('Sections')
     response = table.query(
-        IndexName='course_id_index',
-        KeyConditionExpression=Key('course_id').eq(course_id)
+        KeyConditionExpression=Key('section_id').eq(section_id)
     )
-    return {'response': response}
+
+    items = response.get('Items',[])
+    
+    if not items:
+        raise HTTPException(status_code=404, detail="Section not found")
+    else:
+        return {'response': items}
 
 
 @app.get("/sections/{section_id}/enrollments")
 def list_section_enrollments(
     section_id: int,
-    db: boto3.session.Session = Depends(get_dynamo_db),
+    db: boto3.session.Session = Depends(get_db),
 ):
-    response = db.Table('Enrollments').query(
-        KeyConditionExp = Key('section_id').eq(section_id)
+    table = db.Table('Enrollment')
+    response = table.query(
+        KeyConditionExpression=Key('section_id').eq(section_id)
     )
+
+    items = response.get('Items',[])
+    
+    if not items:
+        raise HTTPException(status_code=404, detail="Enrollmet reccords not found")
+    else:
+        return {'response': items}
 
 '''
 @app.get("/sections/{section_id}/waitlist")
@@ -125,66 +135,54 @@ def list_section_waitlist(
     return ListSectionWaitlistResponse(
         waitlist=[ListSectionWaitlistItem(**dict(item)) for item in waitlist]
     )
-
+'''
+# lists the courses the student is enrolled in
 @app.get("/users/{user_id}/enrollments")
 def list_user_enrollments(
-    user_id: int,
+    student_id: int,
     status=EnrollmentStatus.ENROLLED,
-    db: sqlite3.Connection = Depends(get_db),
+    db: boto3.session.Session = Depends(get_db),
     jwt_user: int = Depends(require_x_user),
     jwt_roles: list[Role] = Depends(require_x_roles),
-) -> ListUserEnrollmentsResponse:
-    if Role.REGISTRAR not in jwt_roles and jwt_user != user_id:
+):
+    if Role.REGISTRAR not in jwt_roles and jwt_user != student_id:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    rows = fetch_rows(
-        db,
-        """
-        SELECT enrollments.user_id, enrollments.section_id
-        FROM enrollments
-        INNER JOIN sections ON sections.id = enrollments.section_id
-        WHERE
-            enrollments.status = ?
-            AND sections.deleted = FALSE
-            AND enrollments.user_id = ?
-        """,
-        (status, user_id),
-    )
-    rows = [extract_row(row, "enrollments") for row in rows]
-    return ListUserEnrollmentsResponse(
-        enrollments=database.list_enrollments(
-            db,
-            [(row["user_id"], row["section_id"]) for row in rows],
-        )
+    table = db.Table('Enrollment')
+    response = table.scan(
+        FilterExpression='student_id = :student_id',
+        ExpressionAttributeValues={':student_id': student_id}
     )
 
+    items = response.get('Items',[])
+    
+    if not items:
+        raise HTTPException(status_code=404, detail= "No enrollments found for:" + str(student_id))
+    else:
+        return {'response': items}
 
+''' To tired to think this one out
 @app.get("/users/{user_id}/sections")
 def list_user_sections(
     user_id: int,
     type: ListUserSectionsType = ListUserSectionsType.ALL,
-    db: sqlite3.Connection = Depends(get_db),
-) -> ListUserSectionsResponse:
-    q = """
-        SELECT sections.id
-        FROM sections
-        INNER JOIN enrollments ON enrollments.section_id = sections.id
-        WHERE sections.deleted = FALSE AND
-    """
-
-    wheres = []
-    q += "("
-    if type == ListUserSectionsType.ALL or type == ListUserSectionsType.ENROLLED:
-        wheres.append("enrollments.user_id = :user_id")
-    if type == ListUserSectionsType.ALL or type == ListUserSectionsType.INSTRUCTING:
-        wheres.append("sections.instructor_id = :user_id")
-    q += " OR ".join(wheres)
-    q += ")"
-
-    rows = fetch_rows(db, q, {"user_id": user_id})
-    return ListUserSectionsResponse(
-        sections=database.list_sections(db, [row["sections.id"] for row in rows])
+    db: boto3.session.Session = Depends(get_db),
+):
+    
+    table = db.Table('Enrollment')
+    
+    response = table.query(
+        KeyConditionExpression=Key('section_id').eq(section_id),
+        FilterExpression=Attr('status').eq('enrolled')
     )
+
+    items = response.get('Items', [])
+    
+    if not items:
+        raise HTTPException(status_code=404, detail="No enrolled students found for the section")
+    else:
+        return {'enrolled_students': items}
+   
 
 
 @app.get("/users/{user_id}/waitlist")
@@ -309,10 +307,10 @@ def create_enrollment(
 @app.post("/courses")
 def add_course(
     course: AddCourseRequest,
-    db: boto3.session.Session = Depends(get_dynamo_db),
+    db: boto3.session.Session = Depends(get_db),
 ):
     try:
-        db.Table("EnrollmentService").put_item(
+        db.Table("Courses").put_item(
             Item=course.dict()
         )
     except Exception as e:
@@ -323,7 +321,7 @@ def add_course(
 @app.post("/sections")
 def add_section(
     section: AddSectionRequest,
-    db: boto3.session.Session = Depends(get_dynamo_db),
+    db: boto3.session.Session = Depends(get_db),
 ):
     try:
         db.Table("EnrollmentService").put_item(
@@ -393,13 +391,14 @@ def drop_user_enrollment(
 
     enrollments = database.list_enrollments(db, [(user_id, section_id)])
     return enrollments[0]
+
 '''
 
 @app.delete("/users/{user_id}/waitlist/{section_id}")
 def drop_user_waitlist(
     user_id: int,
     section_id: int,
-    db: boto3.session.Session = Depends(get_dynamo_db),
+    db: boto3.session.Session = Depends(get_db),
     redis: Redis = Depends(get_redis_db),
     jwt_user: int = Depends(require_x_user),
     jwt_roles: list[Role] = Depends(require_x_roles),
@@ -423,8 +422,10 @@ def drop_user_waitlist(
         if position > deleted_position:
             redis.hset(key, "position", position - 1)
 
-    # Delete the waitlist enrollment.
+    ### Delete the waitlist enrollment from DynamoDB ###
     # TODO: DynamoDB call that deletes enrollment entry (does NOT mark for deletion)
+
+
 
     return {"message": f"Section '{section_id}' deleted for user {user_id} from waitlist"}
 
@@ -542,6 +543,27 @@ async def get_waitlist(section_id: int, redis: Redis = Depends(get_redis_db)):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Given Section Id doesnt exist")
 
     return {"section_id": section_id, "waitlist": waitlist_data}
+
+
+@app.delete("/deleteFromWaitlist/{user_id}/{section_id}")
+async def delete_from_waitlist(user_id:int, section_id:int, redis: Redis = Depends(get_redis_db)):
+    
+    waitlist_key = f"waitlist:user_id:{user_id}:section_id:{section_id}"
+
+    # Check if the field exists in the hash
+    if not redis.exists(waitlist_key):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Section '{section_id}' not found for user {user_id}")
+
+    deleted_position = int(redis.hget(waitlist_key, 'position'))
+    redis.delete(waitlist_key)
+    # Decrement the position for all users with position greater than the deleted position
+    waitlist_keys = redis.keys(f"waitlist:user_id:*:section_id:{section_id}")
+    for key in waitlist_keys:
+        position = int(redis.hget(key, "position"))
+        if position > deleted_position:
+            redis.hset(key, "position", position - 1)
+
+    return {"message": f"Section '{section_id}' deleted for user {user_id} from waitlist"}
 
 #To get wailtists for a user
 @app.get("/user_waitlist/{user_id}")

@@ -11,11 +11,9 @@ def table_create_courses(db):
     table = db.create_table(
         TableName = 'Courses',
         KeySchema=[
-            {'AttributeName': 'department', 'KeyType': 'HASH'},
-            {'AttributeName': 'course_id', 'KeyType': 'RANGE'}
+            {'AttributeName': 'course_id', 'KeyType': 'HASH'}
         ],
         AttributeDefinitions=[
-            {'AttributeName': 'department', 'AttributeType': 'S'}, 
             {'AttributeName': 'course_id', 'AttributeType': 'S'},
         ],
         ProvisionedThroughput={
@@ -28,6 +26,7 @@ def table_create_courses(db):
     ## other attributes:
     # AttributeDefinitions=[
     #     {'AttributeName': 'name', 'AttributeType': 'S'},
+    #     {'AttributeName': 'department', 'AttributeType': 'S'}  
     # ]
 
 def table_create_sections(db):
@@ -36,12 +35,10 @@ def table_create_sections(db):
     table = db.create_table(
         TableName = 'Sections',
         KeySchema=[
-            {'AttributeName': 'course_id', 'KeyType': 'HASH'},
-            {'AttributeName': 'section_id', 'KeyType': 'RANGE'},
+            {'AttributeName': 'section_id', 'KeyType': 'HASH'},
         ],
         AttributeDefinitions=[
-            {'AttributeName': 'course_id', 'AttributeType': 'S'},
-            {'AttributeName': 'section_id', 'AttributeType': 'S'},
+            {'AttributeName': 'section_id', 'AttributeType': 'N'},
         ],
         ProvisionedThroughput={
             'ReadCapacityUnits': 10,
@@ -52,14 +49,16 @@ def table_create_sections(db):
 
 	## other attributes:table.update(
     # AttributeDefinitions=[
+    #     {'AttributeName': 'course_id', 'AttributeType': 'S'},
     #     {'AttributeName': 'instructor_id', 'AttributeType': 'N'},
     #     {'AttributeName': 'classroom', 'AttributeType': 'S'},
     #     {'AttributeName': 'days', 'AttributeType': 'S'},
     #     {'AttributeName': 'begin_time', 'AttributeType': 'S'},
     #     {'AttributeName': 'end_time', 'AttributeType': 'S'},
-    #     {'AttributeName': 'enrollment_freeze', 'AttributeType': 'N'},
     #     {'AttributeName': 'capacity', 'AttributeType': 'N'},
     #     {'AttributeName': 'waitlist_capacity', 'AttributeType': 'N'},
+    #     {'AttributeName': 'freeze', 'AttributeType': 'N'},
+    #     {'AttributeName': 'deleted', 'AttributeType': 'N'},
     # ]
 
 def table_create_enrollments(db):
@@ -68,12 +67,12 @@ def table_create_enrollments(db):
     table = db.create_table(
         TableName = 'Enrollments',
         KeySchema=[
-            {'AttributeName': 'student_id', 'KeyType': 'HASH'},
-            {'AttributeName': 'section_id', 'KeyType': 'RANGE'},
+            {'AttributeName': 'section_id', 'KeyType': 'HASH'},
+            {'AttributeName': 'student_id', 'KeyType': 'RANGE'},
         ],
         AttributeDefinitions=[
-            {'AttributeName': 'student_id', 'AttributeType': 'S'},
-            {'AttributeName': 'section_id', 'AttributeType': 'S'}
+            {'AttributeName': 'student_id', 'AttributeType': 'N'},
+            {'AttributeName': 'section_id', 'AttributeType': 'N'}
         ],
         ProvisionedThroughput= {
             'ReadCapacityUnits': 10,

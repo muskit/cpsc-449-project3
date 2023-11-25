@@ -1,23 +1,27 @@
 from enum import Enum
 from pydantic import BaseModel
+from typing import List
+
 from services.authentication.models import *
+
 
 class Course(BaseModel):
     course_id: str
-    name: str
+    course_name: str
     department: str
 
 
 class Section(BaseModel):
-    id: int
-    course: Course
-    classroom: str | None
+    section_id: int
+    course_id: str
+    classroom: str
     capacity: int
     waitlist_capacity: int
-    day: str
+    days: List[str]
     begin_time: str
     end_time: str
     freeze: bool
+    deleted: bool
     instructor_id: int
 
 

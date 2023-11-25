@@ -1,7 +1,15 @@
 import boto3
+from internal.database_dynamo import get_db, table_exists
 
-# Create the DynamoDB client
-dynamodb = boto3.resource('dynamodb', endpoint_url='http://localhost:8000')
+if __name__ == '__main__':
+	# Create the DynamoDB client
+	db = get_db()
 
-table = dynamodb.Table('EnrollmentService')
-table.delete()
+	if table_exists(db, 'Enrollments'):
+		db.Table('Enrollments').delete()
+
+	if table_exists(db, 'Sections'):
+		db.Table('Sections').delete()
+
+	if table_exists(db, 'Courses'):
+		db.Table('Courses').delete()
