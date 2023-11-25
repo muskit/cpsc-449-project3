@@ -72,7 +72,7 @@ def table_create_enrollments(db):
             {'AttributeName': 'section_id', 'KeyType': 'RANGE'},
         ],
         AttributeDefinitions=[
-            {'AttributeName': 'student_id', 'KeyType': 'S'},
+            {'AttributeName': 'student_id', 'AttributeType': 'S'},
             {'AttributeName': 'section_id', 'AttributeType': 'S'}
         ],
         ProvisionedThroughput= {
@@ -92,6 +92,7 @@ if __name__ == "__main__":
     db = get_db()
     table_create_courses(db)
     table_create_sections(db)
+    table_create_enrollments(db)
 
 '''
 To create a GSI, add the following as an argument to the table_create:
