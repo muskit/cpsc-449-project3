@@ -38,7 +38,6 @@ class Enrollment(BaseModel):
     user_id: int
     section: Section
     status: EnrollmentStatus
-    grade: str | None
 
 
 class Waitlist(BaseModel):
