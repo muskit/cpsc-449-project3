@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from internal import password
-from services.models import *
+from .models import *
 from .api import RegisterRequest
 
 users: list[RegisterRequest] = [

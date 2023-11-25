@@ -5,7 +5,7 @@ from typing import Generator
 from dotenv import load_dotenv
 from internal.database import fetch_rows, extract_row, set_db_path
 
-from services.models import *
+from .models import *
 
 load_dotenv()
 

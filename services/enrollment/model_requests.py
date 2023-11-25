@@ -76,6 +76,9 @@ class ListUserSectionsResponse(BaseModel):
 class ListUserWaitlistResponse(BaseModel):
     waitlist: list[Waitlist]
 
+class DropFromWaitlistRequest(BaseModel):
+    user_id: int
+    section_id: int
 
 class UpdateSectionRequest(BaseModel):
     classroom: str | None

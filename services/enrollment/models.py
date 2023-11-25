@@ -1,6 +1,6 @@
 from enum import Enum
 from pydantic import BaseModel
-from services.models import *
+from services.authentication.models import *
 
 
 class Department(BaseModel):
