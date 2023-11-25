@@ -9,12 +9,13 @@ from fastapi.responses import JSONResponse
 from internal.jwt_claims import require_x_roles, require_x_user
 from redis import Redis
 
+from .models import *
 from .models_api import *
 
 app = FastAPI()
 
 # Connect to the database and logs it
-def get_db():
+def get_dynamo_db():
     return boto3.resource('dynamodb', endpoint_url = 'http://localhost:8000')
 
 # Connect to Redis
@@ -24,7 +25,7 @@ def get_redis_db():
 
 @app.get("/courses")
 def list_courses(
-    db: boto3.session.Session = Depends(get_db),
+    db: boto3.session.Session = Depends(get_dynamo_db),
 ):
     table = db.Table('EnrollmentService')
     courses = table.scan(IndexName = 'course_name_index')
@@ -35,7 +36,7 @@ def list_courses(
 @app.get("/courses/{course_code}")
 def get_course(
     course_name: str,
-    db: boto3.session.Session = Depends(get_db),
+    db: boto3.session.Session = Depends(get_dynamo_db),
 ):
     table = db.Table('EnrollmentService')
     response = table.query(
@@ -71,7 +72,7 @@ def get_course_waitlist(
 
 @app.get("/sections")
 def list_sections(
-    db: boto3.session.Session = Depends(get_db),
+    db: boto3.session.Session = Depends(get_dynamo_db),
 ):
     table = db.Table('EnrollmentService')
     courses = table.scan(IndexName = 'course_id_index')
@@ -81,7 +82,7 @@ def list_sections(
 @app.get("/sections/{section_id}")
 def get_section(
     course_id: str,
-    db: boto3.session.Session = Depends(get_db),
+    db: boto3.session.Session = Depends(get_dynamo_db),
 ):
     table = db.Table('EnrollmentService')
     response = table.query(
@@ -94,7 +95,7 @@ def get_section(
 @app.get("/sections/{section_id}/enrollments")
 def list_section_enrollments(
     section_id: int,
-    db: boto3.session.Session = Depends(get_db),
+    db: boto3.session.Session = Depends(get_dynamo_db),
 ):
     response = db.Table('Enrollments').query(
         KeyConditionExp = Key('section_id').eq(section_id)
@@ -308,7 +309,7 @@ def create_enrollment(
 @app.post("/courses")
 def add_course(
     course: AddCourseRequest,
-    db: boto3.session.Session = Depends(get_db),
+    db: boto3.session.Session = Depends(get_dynamo_db),
 ):
     try:
         db.Table("EnrollmentService").put_item(
@@ -322,7 +323,7 @@ def add_course(
 @app.post("/sections")
 def add_section(
     section: AddSectionRequest,
-    db: boto3.session.Session = Depends(get_db),
+    db: boto3.session.Session = Depends(get_dynamo_db),
 ):
     try:
         db.Table("EnrollmentService").put_item(
@@ -392,66 +393,42 @@ def drop_user_enrollment(
 
     enrollments = database.list_enrollments(db, [(user_id, section_id)])
     return enrollments[0]
-
+'''
 
 @app.delete("/users/{user_id}/waitlist/{section_id}")
 def drop_user_waitlist(
     user_id: int,
     section_id: int,
-    db: sqlite3.Connection = Depends(get_db),
+    db: boto3.session.Session = Depends(get_dynamo_db),
+    redis: Redis = Depends(get_redis_db),
     jwt_user: int = Depends(require_x_user),
     jwt_roles: list[Role] = Depends(require_x_roles),
 ):
     if Role.REGISTRAR not in jwt_roles and jwt_user != user_id:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    # Delete the entry from the waitlist, storing the position.
-    row = fetch_row(
-        db,
-        """
-        DELETE FROM waitlist
-        WHERE
-            user_id = :user_id
-            AND section_id = :section_id
-        RETURNING position
-        """,
-        {"user_id": user_id, "section_id": section_id},
-    )
-    if row is None:
-        raise HTTPException(
-            status_code=400,
-            detail="User is not on the waitlist.",
-        )
+    ### Remove waitlist entry in Redis ###
+    waitlist_key = f"waitlist:user_id:{user_id}:section_id:{section_id}"
 
-    position = row["waitlist.position"]
+    # Check if the field exists in the hash
+    if not redis.exists(waitlist_key):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Section '{section_id}' not found for user {user_id}")
 
-    # Ensure that every waitlist entry after this one has its position decremented.
-    write_row(
-        db,
-        """
-        UPDATE waitlist
-        SET position = position - 1
-        WHERE
-            section_id = :section_id
-            AND position > :position
-        """,
-        {"section_id": section_id, "position": position},
-    )
+    deleted_position = int(redis.hget(waitlist_key, 'position'))
+    redis.delete(waitlist_key)
+    # Decrement the position for all users with position greater than the deleted position
+    waitlist_keys = redis.keys(f"waitlist:user_id:*:section_id:{section_id}")
+    for key in waitlist_keys:
+        position = int(redis.hget(key, "position"))
+        if position > deleted_position:
+            redis.hset(key, "position", position - 1)
 
     # Delete the waitlist enrollment.
-    write_row(
-        db,
-        """
-        DELETE FROM enrollments
-        WHERE
-            user_id = :user_id
-            AND section_id = :section_id
-            AND status = 'Waitlisted'
-        """,
-        {"user_id": user_id, "section_id": section_id},
-    )
+    # TODO: DynamoDB call that deletes enrollment entry (does NOT mark for deletion)
 
+    return {"message": f"Section '{section_id}' deleted for user {user_id} from waitlist"}
 
+'''
 @app.delete("/sections/{section_id}/enrollments/{user_id}")
 def drop_section_enrollment(
     section_id: int,
@@ -565,27 +542,6 @@ async def get_waitlist(section_id: int, redis: Redis = Depends(get_redis_db)):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Given Section Id doesnt exist")
 
     return {"section_id": section_id, "waitlist": waitlist_data}
-
-
-@app.delete("/deleteFromWaitlist/{user_id}/{section_id}")
-async def delete_from_waitlist(user_id:int, section_id:int, redis: Redis = Depends(get_redis_db)):
-    
-    waitlist_key = f"waitlist:user_id:{user_id}:section_id:{section_id}"
-
-    # Check if the field exists in the hash
-    if not redis.exists(waitlist_key):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Section '{section_id}' not found for user {user_id}")
-
-    deleted_position = int(redis.hget(waitlist_key, 'position'))
-    redis.delete(waitlist_key)
-    # Decrement the position for all users with position greater than the deleted position
-    waitlist_keys = redis.keys(f"waitlist:user_id:*:section_id:{section_id}")
-    for key in waitlist_keys:
-        position = int(redis.hget(key, "position"))
-        if position > deleted_position:
-            redis.hset(key, "position", position - 1)
-
-    return {"message": f"Section '{section_id}' deleted for user {user_id} from waitlist"}
 
 #To get wailtists for a user
 @app.get("/user_waitlist/{user_id}")
