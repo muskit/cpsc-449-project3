@@ -7,10 +7,12 @@ class AddCourseRequest(BaseModel):
 
 class AddSectionRequest(BaseModel):
     course_id: str
+    section_id: str
     course_name: str
     classroom: str
     capacity: int
     waitlist_capacity: int
+    current_capacity: int
     days: str
     begin_time: str
     end_time: str
