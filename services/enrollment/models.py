@@ -2,17 +2,10 @@ from enum import Enum
 from pydantic import BaseModel
 from services.authentication.models import *
 
-
-class Department(BaseModel):
-    id: int
-    name: str
-
-
 class Course(BaseModel):
-    id: int
-    code: str
+    course_id: str
     name: str
-    department: Department
+    department: str
 
 
 class Section(BaseModel):

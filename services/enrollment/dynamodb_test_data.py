@@ -1,52 +1,26 @@
 import boto3
+from internal.database_dynamo import get_db
+from .models import *
 
-# Create a DynamoDB client
-dynamodb = boto3.resource('dynamodb', endpoint_url='http://localhost:8000')
+def insert_courses():
+    db = get_db()
+    table = db.Table('Courses')
+    items = [
+        Course(course_id='CPSC 449', name='Backend Engineering', department='Computer Science').model_dump(),
+        Course(course_id='ENGL 101', name='Beginning College Writing', department='English, Comparative Literature, and Linguistics').model_dump(),
+        Course(course_id='JAPN 101', name='Fundamental Japanese I', department='Modern Languages and Literatures').model_dump(),
+    ]
+    insert_items_into_table(table, items)
 
-table = dynamodb.Table('EnrollmentService')
+def insert_sections():
+    pass
 
-# Create the test data
-test_data = [
-    {
-        'course_id': 'CS101',
-        'course_name': 'Introduction to Computer Science',
-        'instructor_id': 1,
-        'department': 'Computer Science',
-        'classroom': 'CS101',
-        'capacity': 30,
-        'waitlist_capacity': 15,
-        'days': 'Monday',
-        'begin_time': '9:00 AM',
-        'end_time': '10:30 AM'
-    },
-    {
-        'course_id': 'CS102',
-        'course_name': 'Data Structures and Algorithms',
-        'instructor_id': 3,
-        'department': 'Computer Science',
-        'classroom': 'CS102',
-        'capacity': 20,
-        'waitlist_capacity': 15,
-        'days': 'Wednesday',
-        'begin_time': '10:30 AM',
-        'end_time': '12:00 PM'
-    },
-    {
-        'course_id': 'M102',
-        'course_name': 'Discrete Math',
-        'instructor_id': 3,
-        'department': 'Math',
-        'classroom': 'MH102',
-        'capacity': 20,
-        'waitlist_capacity': 15,
-        'days': 'Thursday',
-        'begin_time': '10:30 AM',
-        'end_time': '12:00 PM'
-    }
-  
-]
+def insert_enrollments(): # make it correspond to redis' test data
+    pass
 
-# Put the test data into the table
-for item in test_data:
-    table.put_item(Item = item)
+def insert_items_into_table(table, items):
+    for item in items:
+        table.put_item(Item = item)
 
+if __name__ == '__main__':
+    insert_courses()
