@@ -48,7 +48,21 @@ Other packages:
 
 ## Initialization
 
-After installing necessary components, run the pre-start init script...
+Make sure you're in the virtual environment.
+
+```bash
+> which python
+.../.venv/bin/python
+
+# if output doesn't contain a string like the above...
+source .venv/bin/activate
+```
+
+First, run `aws configure`, and setup using dummy credentials
+(go [here](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-quickstart.html#getting-started-quickstart-new-command)
+and look under the "Long-term credentials " tab).
+
+Run the pre-start init script...
 
 ```bash
 ./init_pre_start.sh
@@ -70,8 +84,9 @@ The server has now been initialized and is running.
 
 ## Running
 
-If the server isn't running, assuming the above steps have been taken
-previously, the server can be started by running:
+If the server isn't running, assuming the application has already
+been initialized and you're in the virtual environment, the
+server can be started by running:
 
 ```bash
 foreman start

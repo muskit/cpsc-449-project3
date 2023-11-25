@@ -13,7 +13,7 @@ def wait_for_gsi(table, index_name):
         time.sleep(3)  # Wait for 3 seconds before checking again
 
 # Create the DynamoDB client
-dynamodb = boto3.resource('dynamodb', endpoint_url='http://localhost:8000')
+dynamodb = boto3.resource('dynamodb', endpoint_url = 'http://localhost:8000')
 
 # Create the Sections table
 table = dynamodb.create_table(

@@ -11,5 +11,5 @@ python3 -m services.authentication.schema_init
 echo
 
 echo "Initializing enrollment database..."
-python3 -m services.enrollment.create_dynamodb
+python3 -m services.enrollment.dynamodb_init
 echo
