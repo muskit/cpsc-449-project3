@@ -1,10 +1,10 @@
 import logging.config
+from typing import Generator
 import boto3
 from boto3.dynamodb.conditions import Key, Attr
 from pydantic_settings import BaseSettings
 from fastapi.routing import APIRoute
 from fastapi import FastAPI, Depends, HTTPException, Request, status
-# from pydantic import BaseModel
 from fastapi.responses import JSONResponse
 from internal.jwt_claims import require_x_roles, require_x_user
 from redis import Redis
@@ -16,7 +16,7 @@ from .models import *
 app = FastAPI()
 
 # Connect to Redis
-def get_redis_db():
+def get_redis_db() -> Generator[Redis, None, None]:
     redis_client = Redis(host='localhost', port=6379, db=0, decode_responses=True)
     return redis_client
 
@@ -179,7 +179,7 @@ def list_user_sections(
 @app.get("/users/{user_id}/waitlist")
 def list_user_waitlist(
     user_id: int,
-    redis: Depends(get_redis_db),
+    redis = Depends(get_redis_db),
 ) -> ListUserWaitlistResponse:
     waitlist_keys = redis.keys(f"waitlist:user_id:{user_id}:section_id:*")
     
@@ -204,20 +204,20 @@ def create_enrollment(
     jwt_user: int = Depends(require_x_user),
     jwt_roles: list[Role] = Depends(require_x_roles),
 ) -> CreateEnrollmentResponse:
- 
+
     if Role.REGISTRAR not in jwt_roles and jwt_user != user_id:
         raise HTTPException(status_code=403, detail="Not authorized")
- 
+
     # DynamoDB table
     enrollment_table = db.Table('Enrollment')
     section_table = db.Table('Sections')
     waitlist_table = db.Table('Waitlist')
- 
+
     section_id = enrollment.section
- 
+
     # Verify that the class still has space.
     section_data = section_table.get_item(Key={'id' : section_id})
- 
+
     if (
         section_data.get('Item') and
         section_data['Item']['capacity'] > section_data['Item']['enrollment_count'] and
@@ -234,11 +234,11 @@ def create_enrollment(
                 'date' : 'CURRENT_TIMESTAMP',
             }
         )
- 
+
     else:
         # Otherwise, try to add them to the waitlist.
         waitlist_data = waitlist_table.get_item(Key={'student_id': user_id, 'section_id': section_id})
- 
+
         if (
             section_data.get('Item') and
             section_data['Item']['waitlist_capacity'] > section_data['Item']['waitlist_count'] and
@@ -256,8 +256,8 @@ def create_enrollment(
                     'date': 'CURRENT_TIMESTAMP',
                 }
             )
- 
- 
+
+
             # Ensure that there's also a waitlist enrollment.
             enrollment_table.put_item(
                 Item={
@@ -268,18 +268,18 @@ def create_enrollment(
                     'date' : 'CURRENT_TIMESTAMP',
                 }
             )
- 
+
         else:
             raise HTTPException(
                 status_code=400,
                 detail="Section is full and waitlist is full.",
             )
     # Retrieve and return enrollment details
- 
+
     enrollment_data = enrollment_table.get_item(Key={'student_id': user_id, 'section_id' : section_id})
- 
+
     waitlist_position = waitlist_data.get('Item', {}).get('position', None)
- 
+
     return CreateEnrollmentResponse(
         **enrollment_data.get('Item', {}),
         waitlist_position=waitlist_position,
@@ -388,7 +388,7 @@ def drop_user_enrollment(
         
     except Exception as e:
         raise HTTPException(status_code=409, detail=f"Failed to update section:{e}")
-   
+
 
 @app.delete("/users/{user_id}/waitlist/{section_id}")
 def drop_user_waitlist(
@@ -416,41 +416,42 @@ def drop_user_waitlist(
         if position > deleted_position:
             redis.hset(key, "position", position - 1)
 
-
-
     return {"message": f"Section '{section_id}' deleted for user {user_id} from waitlist"}
 
-'''
+
 @app.delete("/sections/{section_id}/enrollments/{user_id}")
 def drop_section_enrollment(
     section_id: int,
     user_id: int,
-    db: sqlite3.Connection = Depends(get_db),
+    db = Depends(get_db),
     jwt_user: int = Depends(require_x_user),
     jwt_roles: list[Role] = Depends(require_x_roles),
 ) -> Enrollment:
+
     # Ensure the user is instructing the section or is a registrar.
     if Role.REGISTRAR not in jwt_roles and jwt_user != user_id:
-        row = fetch_row(
-            db,
-            """
-            SELECT instructor_id FROM sections
-            WHERE id = :section_id
-            """,
-            {"section_id": section_id},
+        # Requester is instructor and requested user is not self
+
+        # Course existence check
+        table = db.Table('Sections')
+        response = table.query(
+            KeyConditionExpression=Key('section_id').eq(section_id)
         )
-        if row is None:
+        items = response.get('Items', [])
+        if not items:
             raise HTTPException(
                 status_code=404,
                 detail="Section not found.",
             )
-        if row["sections.instructor_id"] != jwt_user:
+        
+        # Instructor auth check
+        if items[0]["instructor_id"] != jwt_user:
             raise HTTPException(status_code=403, detail="Not authorized")
-
+        
     # No auth so these two methods behave virtually identically.
     return drop_user_enrollment(user_id, section_id, db)
 
-
+'''
 @app.delete("/sections/{section_id}")
 def delete_section(section_id: int, db: sqlite3.Connection = Depends(get_db)):
     # check validity of section_id
@@ -493,7 +494,7 @@ def delete_section(section_id: int, db: sqlite3.Connection = Depends(get_db)):
     )
     for u in uw:
         drop_user_waitlist(u[0], section_id, db)
-
+'''
 
 # Endpoint to add a user to the waitlist
 async def add_to_waitlist(item: WaitlistItem, redis: Redis = Depends(get_redis_db)):
@@ -514,4 +515,3 @@ async def add_to_waitlist(item: WaitlistItem, redis: Redis = Depends(get_redis_d
 for route in app.routes:
     if isinstance(route, APIRoute):
         route.operation_id = route.name
-'''
