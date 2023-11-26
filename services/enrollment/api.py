@@ -1,4 +1,3 @@
-import logging.config
 from typing import Generator
 import boto3
 from boto3.dynamodb.conditions import Key, Attr
@@ -425,14 +424,14 @@ def delete_section(section_id: int, db: boto3.session.Session = Depends(get_db),
 
     # Check validity of section_id
     section_data = section_table.get_item(
-        Key={'id': section_id}
+        Key={'section_id': section_id}
     )
     if 'Item' not in section_data:
         raise HTTPException(status_code=404, detail="Section not found")
 
     # Mark section as deleted
     section_table.update_item(
-        Key={'id': section_id},
+        Key={'section_id': section_id},
         UpdateExpression="SET deleted = :deleted",
         ExpressionAttributeValues={":deleted": True},
     )
@@ -442,13 +441,13 @@ def delete_section(section_id: int, db: boto3.session.Session = Depends(get_db),
         KeyConditionExpression=Key('section_id').eq(section_id)
     )
     for user_data in enrolled_users.get('Items', []):
-        drop_user_enrollment(user_data['user_id'], section_id, db)
+        print(user_data)
+        drop_user_enrollment(user_data['student_id'], section_id, db)
 
     # Drop waitlisted users in Redis
-    waitlist_key = f"section:{section_id}:waitlist"
-    waitlist_users = redis_db.zrange(waitlist_key, 0, -1) 
-    for user_id in waitlist_users:
-        drop_user_waitlist(int(user_id), section_id, db)
+    keys = redis_db.keys(f"waitlist:*section_id:{section_id}")
+    for k in keys:
+        redis_db.delete(k)
 
     return {"message": "Section deleted successfully"}
 
