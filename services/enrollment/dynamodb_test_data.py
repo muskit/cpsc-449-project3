@@ -60,7 +60,7 @@ def insert_sections():
             instructor_id=4
         ).model_dump(),
         Section(
-            section_id=11011,
+            section_id=11211,
             course_id='JAPN 102',
             classroom='HUM 203',
             capacity=30,
