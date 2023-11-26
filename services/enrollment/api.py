@@ -212,15 +212,44 @@ def create_enrollment(
         # increment enrollment_count
 
     else:
-        # Otherwise, try to add them to the waitlist
-        
-        # TODO: use Redis
-        # Check redis_insert_sample.py for reference
+        # Otherwise, try to add them to the waitlist.
+        waitlist_data = waitlist_table.get_item(Key={'student_id': user_id, 'section_id': section_id})
 
-        raise HTTPException(
-            status_code = 400,
-            detail = "Section is full and waitlist is full.",
-        )
+        if (
+            section_data.get('Item') and
+            section_data['Item']['waitlist_capacity'] > section_data['Item']['waitlist_count'] and
+            waitlist_data.get('Item') and
+            waitlist_data['Item']['position'] < 3 and
+            not section_data['Item']['freeze'] and
+            not section_data['Item']['deleted']
+        ):
+            # Add user to the waitlist
+            waitlist_table.put_item(
+                Item = {
+                    'student_id': user_id,
+                    'section_id': section_id,
+                    'position': waitlist_data['Item']['waitlist_count'] + 1,
+                    'date': 'CURRENT_TIMESTAMP',
+                }
+            )
+
+
+            # Ensure that there's also a waitlist enrollment.
+            enrollment_table.put_item(
+                Item = {
+                    'student_id': user_id,
+                    'section_id': section_id,
+                    'status': 'Waitlisted',
+                    'grade': None,
+                    'date' : 'CURRENT_TIMESTAMP',
+                }
+            )
+
+        else:
+            raise HTTPException(
+                status_code = 400,
+                detail = "Section is full and waitlist is full.",
+            )
     # Retrieve and return enrollment details
 
     enrollment_data = enrollment_table.get_item(Key={'student_id': user_id, 'section_id' : section_id})
@@ -404,50 +433,42 @@ def drop_section_enrollment(
     # No auth so these two methods behave virtually identically.
     return drop_user_enrollment(user_id, section_id, db)
 
-'''
+
 @app.delete("/sections/{section_id}")
-def delete_section(section_id: int, db: sqlite3.Connection = Depends(get_db)):
-    # check validity of section_id
-    get_section(section_id, db)
+def delete_section(section_id: int, db: boto3.session.Session = Depends(get_db), redis_db: Redis = Depends(get_redis_db)):
+    # DynamoDB Table
+    section_table = db.Table('Sections')
+    enrollment_table = db.Table('Enrollment')
 
-    # mark section as deleted
-    write_row(
-        db,
-        """
-        UPDATE sections
-        SET deleted = TRUE
-        WHERE id = :section_id
-        """,
-        {"section_id": section_id},
+    # Check validity of section_id
+    section_data = section_table.get_item(
+        Key={'id': section_id}
+    )
+    if 'Item' not in section_data:
+        raise HTTPException(status_code=404, detail="Section not found")
+
+    # Mark section as deleted
+    section_table.update_item(
+        Key={'id': section_id},
+        UpdateExpression="SET deleted = :deleted",
+        ExpressionAttributeValues={":deleted": True},
     )
 
-    # drop enrolled users
-    ue = fetch_rows(
-        db,
-        f"""
-        SELECT user_id FROM enrollments
-        WHERE 
-            section_id = :section_id
-        """,
-        {"section_id": section_id},
+    # Drop enrolled users
+    enrolled_users = enrollment_table.query( 
+        KeyConditionExpression=Key('section_id').eq(section_id)
     )
-    for u in ue:
-        print(u)
-        drop_user_enrollment(u[0], section_id, db)
+    for user_data in enrolled_users.get('Items', []):
+        drop_user_enrollment(user_data['user_id'], section_id, db)
 
-    # drop waitlisted users
-    uw = fetch_rows(
-        db,
-        f"""
-        SELECT user_id FROM waitlist
-        WHERE 
-            section_id = :section_id
-        """,
-        {"section_id": section_id},
-    )
-    for u in uw:
-        drop_user_waitlist(u[0], section_id, db)
-'''
+    # Drop waitlisted users using Redis
+    waitlist_key = f"section:{section_id}:waitlist"
+    waitlist_users = redis_db.zrange(waitlist_key, 0, -1) 
+    for user_id in waitlist_users:
+        drop_user_waitlist(int(user_id), section_id, db)
+
+    return {"message": "Section deleted successfully"}
+
 
 # Endpoint to add a user to the waitlist
 async def add_to_waitlist(item: WaitlistItem, redis: Redis = Depends(get_redis_db)):
