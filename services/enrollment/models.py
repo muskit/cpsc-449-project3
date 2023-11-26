@@ -32,8 +32,8 @@ class EnrollmentStatus(str, Enum):
 
 
 class Enrollment(BaseModel):
-    user_id: int
-    section: Section
+    student_id: int
+    section_id: int
     status: EnrollmentStatus
 
 

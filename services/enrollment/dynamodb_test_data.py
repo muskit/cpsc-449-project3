@@ -2,13 +2,17 @@ import boto3
 from internal.database_dynamo import get_db
 from .models import *
 
+def insert_items_into_table(table, items):
+    for item in items:
+        table.put_item(Item = item)
+
 def insert_courses():
     db = get_db()
     table = db.Table('Courses')
     items = [
-        Course(course_id='CPSC 449', name='Backend Engineering', department='Computer Science').model_dump(),
-        Course(course_id='ENGL 101', name='Beginning College Writing', department='English, Comparative Literature, and Linguistics').model_dump(),
-        Course(course_id='JAPN 101', name='Fundamental Japanese I', department='Modern Languages and Literatures').model_dump(),
+        Course(course_id='CPSC 449', course_name='Backend Engineering', department='Computer Science').model_dump(),
+        Course(course_id='ENGL 101', course_name='Beginning College Writing', department='English, Comparative Literature, and Linguistics').model_dump(),
+        Course(course_id='JAPN 101', course_name='Fundamental Japanese I', department='Modern Languages and Literatures').model_dump(),
     ]
     insert_items_into_table(table, items)
 
@@ -28,7 +32,7 @@ def insert_sections():
             freeze=False,
             deleted=False,
             instructor_id=2
-        ),
+        ).model_dump(),
         Section(
             section_id=11312,
             course_id='CPSC 449',
@@ -41,7 +45,7 @@ def insert_sections():
             freeze=False,
             deleted=False,
             instructor_id=2
-        ),
+        ).model_dump(),
         Section(
             section_id=11011,
             course_id='ENGL 101',
@@ -54,7 +58,7 @@ def insert_sections():
             freeze=False,
             deleted=False,
             instructor_id=4
-        ),
+        ).model_dump(),
         Section(
             section_id=11011,
             course_id='JAPN 102',
@@ -67,16 +71,33 @@ def insert_sections():
             freeze=False,
             deleted=False,
             instructor_id=3
-        ),
+        ).model_dump(),
     ]
     insert_items_into_table(table, items)
 
 def insert_enrollments(): # make it correspond to redis' test data
-    pass
-
-def insert_items_into_table(table, items):
-    for item in items:
-        table.put_item(Item = item)
+    db = get_db()
+    table = db.Table('Enrollments')
+    items = [
+        Enrollment(
+            student_id=1,
+            section_id=11310,
+            status=EnrollmentStatus.ENROLLED
+        ).model_dump(),
+        Enrollment(
+            student_id=5,
+            section_id=11011,
+            status=EnrollmentStatus.ENROLLED
+        ).model_dump(),
+        Enrollment(
+            student_id=7,
+            section_id=11312,
+            status=EnrollmentStatus.ENROLLED
+        ).model_dump(),
+    ]
+    insert_items_into_table(table, items)
 
 if __name__ == '__main__':
     insert_courses()
+    insert_sections()
+    insert_enrollments()

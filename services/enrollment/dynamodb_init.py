@@ -47,7 +47,7 @@ def table_create_sections(db):
     )
     table.wait_until_exists()
 
-	## other attributes:table.update(
+	## other attributes:
     # AttributeDefinitions=[
     #     {'AttributeName': 'course_id', 'AttributeType': 'S'},
     #     {'AttributeName': 'instructor_id', 'AttributeType': 'N'},
