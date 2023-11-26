@@ -175,36 +175,28 @@ def list_user_sections(
         raise HTTPException(status_code=404, detail="No enrolled students found for the section")
     else:
         return {'enrolled_students': items}
-  
-   
 
-''' To tired to think this one out
 @app.get("/users/{user_id}/waitlist")
 def list_user_waitlist(
     user_id: int,
-    db: sqlite3.Connection = Depends(get_db),
+    redis: Depends(get_redis_db),
 ) -> ListUserWaitlistResponse:
-    section_ids = fetch_rows(
-        db,
-        """
-        SELECT waitlist.user_id, waitlist.section_id
-        FROM waitlist
-        INNER JOIN sections ON sections.id = waitlist.section_id
-        WHERE
-            sections.deleted = FALSE
-            AND (user_id = :user_id OR instructor_id = :user_id)
-        """,
-        {"user_id": user_id},
-    )
-    rows = [extract_row(row, "waitlist") for row in section_ids]
-    return ListUserWaitlistResponse(
-        waitlist=database.list_waitlist(
-            db,
-            [(row["user_id"], row["section_id"]) for row in rows],
-        )
-    )
+    waitlist_keys = redis.keys(f"waitlist:user_id:{user_id}:section_id:*")
+    
+    user_waitlist_data = []
+    for waitlist_key in waitlist_keys:
+        section_id = int(waitlist_key.split(":")[4])
+        position = int(redis.hget(waitlist_key, "position"))
+        date = redis.hget(waitlist_key, "date")
 
+        user_waitlist_data.append({"section_id": section_id, "position": position, "date": date})
 
+    if len(user_waitlist_data) ==0:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User Doesn't Exist")
+
+    return {"user_id": user_id, "user_waitlist": user_waitlist_data}
+
+'''
 @app.post("/users/{user_id}/enrollments")  # student attempt to enroll in class
 def create_enrollment(
     user_id: int,
@@ -392,7 +384,6 @@ def drop_user_enrollment(
 def drop_user_waitlist(
     user_id: int,
     section_id: int,
-    db: boto3.session.Session = Depends(get_db),
     redis: Redis = Depends(get_redis_db),
     jwt_user: int = Depends(require_x_user),
     jwt_roles: list[Role] = Depends(require_x_roles),
@@ -400,7 +391,6 @@ def drop_user_waitlist(
     if Role.REGISTRAR not in jwt_roles and jwt_user != user_id:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    ### Remove waitlist entry in Redis ###
     waitlist_key = f"waitlist:user_id:{user_id}:section_id:{section_id}"
 
     # Check if the field exists in the hash
@@ -415,9 +405,6 @@ def drop_user_waitlist(
         position = int(redis.hget(key, "position"))
         if position > deleted_position:
             redis.hset(key, "position", position - 1)
-
-    ### Delete the waitlist enrollment from DynamoDB ###
-    # TODO: DynamoDB call that deletes enrollment entry (does NOT mark for deletion)
 
 
 
@@ -514,8 +501,6 @@ async def add_to_waitlist(item: WaitlistItem, redis: Redis = Depends(get_redis_d
     return JSONResponse(content={"message": "User added to the waitlist"}, status_code=status.HTTP_201_CREATED)
 
 
-
-
 @app.delete("/deleteFromWaitlist/{user_id}/{section_id}")
 async def delete_from_waitlist(user_id:int, section_id:int, redis: Redis = Depends(get_redis_db)):
     
@@ -536,24 +521,6 @@ async def delete_from_waitlist(user_id:int, section_id:int, redis: Redis = Depen
 
     return {"message": f"Section '{section_id}' deleted for user {user_id} from waitlist"}
 
-#To get wailtists for a user
-@app.get("/user_waitlist/{user_id}")
-async def get_user_waitlist(user_id: int, redis: Redis = Depends(get_redis_db)):
-    waitlist_keys = redis.keys(f"waitlist:user_id:{user_id}:section_id:*")
-    
-    user_waitlist_data = []
-    for waitlist_key in waitlist_keys:
-        section_id = int(waitlist_key.split(":")[4])
-        position = int(redis.hget(waitlist_key, "position"))
-        date = redis.hget(waitlist_key, "date")
-
-        user_waitlist_data.append({"section_id": section_id, "position": position, "date": date})
-
-    if len(user_waitlist_data) ==0:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User Doesn't Exist")
-
-    return {"user_id": user_id, "user_waitlist": user_waitlist_data}
-    
 
 # https://fastapi.tiangolo.com/advanced/path-operation-advanced-configuration/#using-the-path-operation-function-name-as-the-operationid
 for route in app.routes:
