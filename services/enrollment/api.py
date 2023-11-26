@@ -111,31 +111,24 @@ def list_section_enrollments(
     else:
         return {'response': items}
 
-'''
-@app.get("/sections/{section_id}/waitlist")
-def list_section_waitlist(
-    section_id: int,
-    db: sqlite3.Connection = Depends(get_db),
-) -> ListSectionWaitlistResponse:
-    rows = fetch_rows(
-        db,
-        """
-        SELECT waitlist.user_id, waitlist.section_id
-        FROM waitlist
-        INNER JOIN sections ON sections.id = waitlist.section_id
-        WHERE waitlist.section_id = ? AND sections.deleted = FALSE
-        """,
-        (section_id,),
-    )
-    rows = [extract_row(row, "waitlist") for row in rows]
-    waitlist = database.list_waitlist(
-        db,
-        [(row["user_id"], row["section_id"]) for row in rows],
-    )
-    return ListSectionWaitlistResponse(
-        waitlist=[ListSectionWaitlistItem(**dict(item)) for item in waitlist]
-    )
-'''
+# Endpoint to retrieve the waitlist for a section => Will return every entry for a section
+@app.get("/sections/{section_id}/waitlist", status_code=status.HTTP_200_OK)
+async def list_section_waitlist(section_id: int, redis: Redis = Depends(get_redis_db)):
+    waitlist_keys = redis.keys(f"waitlist:user_id:*:section_id:{section_id}")
+    
+    waitlist_data = []
+    for waitlist_key in waitlist_keys:
+        user_id = int(waitlist_key.split(":")[2])
+        position = int(redis.hget(waitlist_key, "position"))
+        date = redis.hget(waitlist_key, "date")
+
+        waitlist_data.append({"user_id": user_id, "position": position, "date": date})
+
+    if len(waitlist_data) ==0:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Given Section Id doesnt exist")
+
+    return {"section_id": section_id, "waitlist": waitlist_data}
+
 # lists the courses the student is enrolled in
 @app.get("/users/{user_id}/enrollments")
 def list_user_enrollments(
@@ -505,13 +498,6 @@ def delete_section(section_id: int, db: sqlite3.Connection = Depends(get_db)):
         drop_user_waitlist(u[0], section_id, db)
 '''
 
-
-# Code for Redis Endpoints
-class WaitlistItem(BaseModel):
-    user_id: int
-    section_id: int
-    position: int
-    date: str
 # Endpoint to add a user to the waitlist
 @app.post("/waitlist/")
 async def add_to_waitlist(item: WaitlistItem, redis: Redis = Depends(get_redis_db)):
@@ -527,23 +513,7 @@ async def add_to_waitlist(item: WaitlistItem, redis: Redis = Depends(get_redis_d
 
     return JSONResponse(content={"message": "User added to the waitlist"}, status_code=status.HTTP_201_CREATED)
 
-# Endpoint to retrieve the waitlist for a section => Will return every entry for a section
-@app.get("/waitlist/{section_id}", status_code=status.HTTP_200_OK)
-async def get_waitlist(section_id: int, redis: Redis = Depends(get_redis_db)):
-    waitlist_keys = redis.keys(f"waitlist:user_id:*:section_id:{section_id}")
-    
-    waitlist_data = []
-    for waitlist_key in waitlist_keys:
-        user_id = int(waitlist_key.split(":")[2])
-        position = int(redis.hget(waitlist_key, "position"))
-        date = redis.hget(waitlist_key, "date")
 
-        waitlist_data.append({"user_id": user_id, "position": position, "date": date})
-
-    if len(waitlist_data) ==0:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Given Section Id doesnt exist")
-
-    return {"section_id": section_id, "waitlist": waitlist_data}
 
 
 @app.delete("/deleteFromWaitlist/{user_id}/{section_id}")

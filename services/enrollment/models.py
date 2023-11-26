@@ -37,7 +37,8 @@ class Enrollment(BaseModel):
     status: EnrollmentStatus
 
 
-class Waitlist(BaseModel):
+class WaitlistItem(BaseModel):
     user_id: int
-    section: Section
+    section_id: Section
     position: int
+    date: str
