@@ -178,6 +178,7 @@ def create_enrollment(
     user_id: int,
     enrollment: CreateEnrollmentRequest,
     db: boto3.session.Session = Depends(get_db),
+    redis = Depends(get_redis_db),
     jwt_user: int = Depends(require_x_user),
     jwt_roles: list[Role] = Depends(require_x_roles),
 ) -> CreateEnrollmentResponse:
@@ -212,38 +213,22 @@ def create_enrollment(
         # increment enrollment_count
 
     else:
-        # Otherwise, try to add them to the waitlist.
-        waitlist_data = waitlist_table.get_item(Key={'student_id': user_id, 'section_id': section_id})
+        # Otherwise, try to add them to the waitlist
+        
+        # TODO: use Redis
+        # Check redis_insert_sample.py for reference
+        waitlist_key = redis.keys(f"section:{section_id}:waitlist")
+        waitlist_size = redis.zcard(waitlist_key)
 
         if (
             section_data.get('Item') and
-            section_data['Item']['waitlist_capacity'] > section_data['Item']['waitlist_count'] and
-            waitlist_data.get('Item') and
-            waitlist_data['Item']['position'] < 3 and
+            section_data['Item']['waitlist_capacity'] > waitlist_size and
             not section_data['Item']['freeze'] and
             not section_data['Item']['deleted']
         ):
             # Add user to the waitlist
-            waitlist_table.put_item(
-                Item = {
-                    'student_id': user_id,
-                    'section_id': section_id,
-                    'position': waitlist_data['Item']['waitlist_count'] + 1,
-                    'date': 'CURRENT_TIMESTAMP',
-                }
-            )
-
-
-            # Ensure that there's also a waitlist enrollment.
-            enrollment_table.put_item(
-                Item = {
-                    'student_id': user_id,
-                    'section_id': section_id,
-                    'status': 'Waitlisted',
-                    'grade': None,
-                    'date' : 'CURRENT_TIMESTAMP',
-                }
-            )
+            waitlist_position = redis.zcard(waitlist_key) + 1
+            redis.zadd(waitlist_key, {user_id: waitlist_position})
 
         else:
             raise HTTPException(
@@ -251,10 +236,8 @@ def create_enrollment(
                 detail = "Section is full and waitlist is full.",
             )
     # Retrieve and return enrollment details
-
     enrollment_data = enrollment_table.get_item(Key={'student_id': user_id, 'section_id' : section_id})
-
-    waitlist_position = waitlist_data.get('Item', {}).get('position', None)
+    waitlist_position = redis.zrank(waitlist_key, user_id)
 
     return CreateEnrollmentResponse(
         **enrollment_data.get('Item', {}),
