@@ -2,6 +2,7 @@ from internal.database_dynamo import *
 from time import sleep
 
 ### TODO: Global Secondary Indexes ##
+# Sections: instructor_id
 
 def table_create_courses(db):
     if table_exists(db, 'Courses'): return

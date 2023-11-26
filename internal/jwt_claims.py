@@ -42,9 +42,9 @@ def generate_claims(
     username: str,
     user_id: str,
     roles: list[Role],
-    expiry_minutes=20,
+    expiry_minutes=20000,
 ) -> Token:
-    _, exp = expiration_in(20)
+    _, exp = expiration_in(expiry_minutes)
 
     claims = Claim(
         aud="krakend.local.gd",

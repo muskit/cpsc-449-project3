@@ -8,7 +8,7 @@ class ListCoursesResponse(BaseModel):
 
 
 class GetCourseWaitlistResponse(BaseModel):
-    waitlist: list[Waitlist]
+    waitlist: list[WaitlistItem]
 
 
 class ListSectionsResponse(BaseModel):
@@ -76,7 +76,7 @@ class ListUserSectionsResponse(BaseModel):
 
 
 class ListUserWaitlistResponse(BaseModel):
-    waitlist: list[Waitlist]
+    waitlist: list[WaitlistItem]
 
 class DropFromWaitlistRequest(BaseModel):
     user_id: int

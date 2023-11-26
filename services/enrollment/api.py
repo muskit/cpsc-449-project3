@@ -496,7 +496,6 @@ def delete_section(section_id: int, db: sqlite3.Connection = Depends(get_db)):
 
 
 # Endpoint to add a user to the waitlist
-@app.post("/waitlist/")
 async def add_to_waitlist(item: WaitlistItem, redis: Redis = Depends(get_redis_db)):
     waitlist_key = f"waitlist:user_id:{item.user_id}:section_id:{item.section_id}"
 
@@ -509,27 +508,6 @@ async def add_to_waitlist(item: WaitlistItem, redis: Redis = Depends(get_redis_d
     redis.hset(waitlist_key, "date", item.date)
 
     return JSONResponse(content={"message": "User added to the waitlist"}, status_code=status.HTTP_201_CREATED)
-
-
-@app.delete("/deleteFromWaitlist/{user_id}/{section_id}")
-async def delete_from_waitlist(user_id:int, section_id:int, redis: Redis = Depends(get_redis_db)):
-    
-    waitlist_key = f"waitlist:user_id:{user_id}:section_id:{section_id}"
-
-    # Check if the field exists in the hash
-    if not redis.exists(waitlist_key):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Section '{section_id}' not found for user {user_id}")
-
-    deleted_position = int(redis.hget(waitlist_key, 'position'))
-    redis.delete(waitlist_key)
-    # Decrement the position for all users with position greater than the deleted position
-    waitlist_keys = redis.keys(f"waitlist:user_id:*:section_id:{section_id}")
-    for key in waitlist_keys:
-        position = int(redis.hget(key, "position"))
-        if position > deleted_position:
-            redis.hset(key, "position", position - 1)
-
-    return {"message": f"Section '{section_id}' deleted for user {user_id} from waitlist"}
 
 
 # https://fastapi.tiangolo.com/advanced/path-operation-advanced-configuration/#using-the-path-operation-function-name-as-the-operationid
