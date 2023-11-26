@@ -196,7 +196,8 @@ def list_user_waitlist(
 
     return {"user_id": user_id, "user_waitlist": user_waitlist_data}
 
-app.post("/users/{user_id}/enrollments")  # student attempt to enroll in class
+
+@app.post("/users/{user_id}/enrollments")  # student attempt to enroll in class
 def create_enrollment(
     user_id: int,
     enrollment: CreateEnrollmentRequest,
@@ -249,7 +250,7 @@ def create_enrollment(
         ):
             # Add user to the waitlist
             waitlist_table.put_item(
-                Item ={
+                Item = {
                     'student_id': user_id,
                     'section_id': section_id,
                     'position': waitlist_data['Item']['waitlist_count'] + 1,
@@ -260,7 +261,7 @@ def create_enrollment(
 
             # Ensure that there's also a waitlist enrollment.
             enrollment_table.put_item(
-                Item={
+                Item = {
                     'student_id': user_id,
                     'section_id': section_id,
                     'status': 'WAitlisted',
@@ -271,8 +272,8 @@ def create_enrollment(
 
         else:
             raise HTTPException(
-                status_code=400,
-                detail="Section is full and waitlist is full.",
+                status_code = 400,
+                detail = "Section is full and waitlist is full.",
             )
     # Retrieve and return enrollment details
 
@@ -282,7 +283,7 @@ def create_enrollment(
 
     return CreateEnrollmentResponse(
         **enrollment_data.get('Item', {}),
-        waitlist_position=waitlist_position,
+        waitlist_position = waitlist_position,
     )
 
 @app.post("/courses")
@@ -292,7 +293,7 @@ def add_course(
 ):
     try:
         db.Table("Courses").put_item(
-            Item=course.dict()
+            Item = course.dict()
         )
     except Exception as e:
         print(e)
@@ -306,29 +307,31 @@ def add_section(
 ):
     try:
         db.Table("EnrollmentService").put_item(
-            Item=section.dict()
+            Item = section.dict()
         )
     except Exception as e:
         print(e)
         raise HTTPException(status_code=400, detail="Unable to add section")
 
-'''
+
 @app.patch("/sections/{section_id}")
 def update_section(
     section_id: int,
     section: UpdateSectionRequest,
-    db: sqlite3.Connection = Depends(get_db),
+    db: boto3.session.Session = Depends(get_db),
 ) -> Section:
-    q = """
-    UPDATE sections
-    SET
-    """
+    
+    section_table = db.Table('Sections')
+
+    q = "SET"
     v = {}
+
     for key, value in section.dict().items():
         if value is not None:
             q += f"{key} = :{key}, "
-            v[key] = value
+            v[f":{key}"] = value
 
+    
     if len(v) == 0:
         raise HTTPException(
             status_code=400,
@@ -337,18 +340,23 @@ def update_section(
 
     q = q[:-2]  # remove trailing comma
 
-    q += """
-    WHERE id = :section_id
-    """
-    v["section_id"] = section_id
-
+    # Update the section
     try:
-        write_row(db, q, v)
+        section_table.update_item(
+            Key={'id': section_id},
+            Q = q,
+            V = v,
+        )
     except Exception as e:
         raise HTTPException(status_code=409, detail=f"Failed to update section:{e}")
+    
+    # Retrieve the updated section
+    section_data =section_table.get_item(Key={'id': section_id})
 
-    sections = database.list_sections(db, [section_id])
-    return sections[0]
+    if 'Item' not in section_data:
+        raise HTTPException(status_code=404, details="section not found")
+    
+    return Section(**section_data['Item'])
 
 '''
 @app.delete("/users/{user_id}/enrollments/{section_id}")
