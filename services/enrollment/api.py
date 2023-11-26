@@ -130,7 +130,7 @@ def list_user_enrollments(
         return {'response': items}
 
 
-app.get("/users/{user_id}/enrollments")
+@app.get("/users/{user_id}/enrollments")
 def list_user_sections(
     user_id: int,
     type: ListUserSectionsType = ListUserSectionsType.ALL,
