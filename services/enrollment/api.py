@@ -196,8 +196,7 @@ def list_user_waitlist(
 
     return {"user_id": user_id, "user_waitlist": user_waitlist_data}
 
-'''
-@app.post("/users/{user_id}/enrollments")  # student attempt to enroll in class
+app.post("/users/{user_id}/enrollments")  # student attempt to enroll in class
 def create_enrollment(
     user_id: int,
     enrollment: CreateEnrollmentRequest,
@@ -205,20 +204,20 @@ def create_enrollment(
     jwt_user: int = Depends(require_x_user),
     jwt_roles: list[Role] = Depends(require_x_roles),
 ) -> CreateEnrollmentResponse:
-    
+ 
     if Role.REGISTRAR not in jwt_roles and jwt_user != user_id:
         raise HTTPException(status_code=403, detail="Not authorized")
-
+ 
     # DynamoDB table
     enrollment_table = db.Table('Enrollment')
     section_table = db.Table('Sections')
     waitlist_table = db.Table('Waitlist')
-
+ 
     section_id = enrollment.section
-
+ 
     # Verify that the class still has space.
     section_data = section_table.get_item(Key={'id' : section_id})
-
+ 
     if (
         section_data.get('Item') and
         section_data['Item']['capacity'] > section_data['Item']['enrollment_count'] and
@@ -235,11 +234,11 @@ def create_enrollment(
                 'date' : 'CURRENT_TIMESTAMP',
             }
         )
-        
+ 
     else:
         # Otherwise, try to add them to the waitlist.
         waitlist_data = waitlist_table.get_item(Key={'student_id': user_id, 'section_id': section_id})
-
+ 
         if (
             section_data.get('Item') and
             section_data['Item']['waitlist_capacity'] > section_data['Item']['waitlist_count'] and
@@ -257,8 +256,8 @@ def create_enrollment(
                     'date': 'CURRENT_TIMESTAMP',
                 }
             )
-
-
+ 
+ 
             # Ensure that there's also a waitlist enrollment.
             enrollment_table.put_item(
                 Item={
@@ -269,23 +268,22 @@ def create_enrollment(
                     'date' : 'CURRENT_TIMESTAMP',
                 }
             )
-
+ 
         else:
             raise HTTPException(
                 status_code=400,
                 detail="Section is full and waitlist is full.",
             )
     # Retrieve and return enrollment details
-
+ 
     enrollment_data = enrollment_table.get_item(Key={'student_id': user_id, 'section_id' : section_id})
-
+ 
     waitlist_position = waitlist_data.get('Item', {}).get('position', None)
-
+ 
     return CreateEnrollmentResponse(
         **enrollment_data.get('Item', {}),
         waitlist_position=waitlist_position,
     )
-'''
 
 @app.post("/courses")
 def add_course(
@@ -538,4 +536,4 @@ async def delete_from_waitlist(user_id:int, section_id:int, redis: Redis = Depen
 for route in app.routes:
     if isinstance(route, APIRoute):
         route.operation_id = route.name
-
+'''
