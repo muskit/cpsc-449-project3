@@ -13,7 +13,7 @@ from typing import Generator, Optional
 from fastapi import Header
 
 from pydantic import BaseModel
-from services.models import Role
+from services.authentication.models import Role
 
 
 def expiration_in(minutes: int) -> tuple[datetime.datetime, datetime.datetime]:
