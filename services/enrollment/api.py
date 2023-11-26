@@ -75,7 +75,7 @@ def list_section_enrollments(
     section_id: int,
     db: boto3.session.Session = Depends(get_db),
 ):
-    table = db.Table('Enrollment')
+    table = db.Table('Enrollments')
     response = table.query(
         KeyConditionExpression=Key('section_id').eq(section_id)
     )
@@ -117,7 +117,7 @@ def list_user_enrollments(
     if Role.REGISTRAR not in jwt_roles and jwt_user != student_id:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    table = db.Table('Enrollment')
+    table = db.Table('Enrollments')
     response = table.scan(
         FilterExpression='student_id = :student_id',
         ExpressionAttributeValues={':student_id': student_id}
@@ -421,7 +421,7 @@ def drop_section_enrollment(
 def delete_section(section_id: int, db: boto3.session.Session = Depends(get_db), redis_db: Redis = Depends(get_redis_db)):
     # DynamoDB Table
     section_table = db.Table('Sections')
-    enrollment_table = db.Table('Enrollment')
+    enrollment_table = db.Table('Enrollments')
 
     # Check validity of section_id
     section_data = section_table.get_item(
@@ -444,7 +444,7 @@ def delete_section(section_id: int, db: boto3.session.Session = Depends(get_db),
     for user_data in enrolled_users.get('Items', []):
         drop_user_enrollment(user_data['user_id'], section_id, db)
 
-    # Drop waitlisted users using Redis
+    # Drop waitlisted users in Redis
     waitlist_key = f"section:{section_id}:waitlist"
     waitlist_users = redis_db.zrange(waitlist_key, 0, -1) 
     for user_id in waitlist_users:
