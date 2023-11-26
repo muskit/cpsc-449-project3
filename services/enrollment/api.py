@@ -186,14 +186,13 @@ def create_enrollment(
         raise HTTPException(status_code=403, detail="Not authorized")
 
     # DynamoDB table
-    enrollment_table = db.Table('Enrollment')
+    enrollment_table = db.Table('Enrollments')
     section_table = db.Table('Sections')
-    waitlist_table = db.Table('Waitlist')
 
     section_id = enrollment.section
 
     # Verify that the class still has space.
-    section_data = section_table.get_item(Key={'id' : section_id})
+    section_data = section_table.get_item(Key={'section_id' : section_id})
 
     if (
         section_data.get('Item') and
@@ -203,54 +202,25 @@ def create_enrollment(
     ):
         # If there is space, enroll the student.
         enrollment_table.put_item(
-            Item={
-                'student_id': user_id,
-                'section_id' : section_id,
-                'status' : 'Enrolled',
-                'grade' : None,
-                'date' : 'CURRENT_TIMESTAMP',
-            }
+            Item=Enrollment(
+                student_id=user_id,
+                section_id=section_id,
+                enrollment_status=EnrollmentStatus.ENROLLED
+            ).model_dump()
         )
 
+        # increment enrollment_count
+
     else:
-        # Otherwise, try to add them to the waitlist.
-        waitlist_data = waitlist_table.get_item(Key={'student_id': user_id, 'section_id': section_id})
+        # Otherwise, try to add them to the waitlist
+        
+        # TODO: use Redis
+        # Check redis_insert_sample.py for reference
 
-        if (
-            section_data.get('Item') and
-            section_data['Item']['waitlist_capacity'] > section_data['Item']['waitlist_count'] and
-            waitlist_data.get('Item') and
-            waitlist_data['Item']['position'] < 3 and
-            not section_data['Item']['freeze'] and
-            not section_data['Item']['deleted']
-        ):
-            # Add user to the waitlist
-            waitlist_table.put_item(
-                Item = {
-                    'student_id': user_id,
-                    'section_id': section_id,
-                    'position': waitlist_data['Item']['waitlist_count'] + 1,
-                    'date': 'CURRENT_TIMESTAMP',
-                }
-            )
-
-
-            # Ensure that there's also a waitlist enrollment.
-            enrollment_table.put_item(
-                Item = {
-                    'student_id': user_id,
-                    'section_id': section_id,
-                    'status': 'WAitlisted',
-                    'grade': None,
-                    'date' : 'CURRENT_TIMESTAMP',
-                }
-            )
-
-        else:
-            raise HTTPException(
-                status_code = 400,
-                detail = "Section is full and waitlist is full.",
-            )
+        raise HTTPException(
+            status_code = 400,
+            detail = "Section is full and waitlist is full.",
+        )
     # Retrieve and return enrollment details
 
     enrollment_data = enrollment_table.get_item(Key={'student_id': user_id, 'section_id' : section_id})
