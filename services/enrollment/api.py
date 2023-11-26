@@ -177,7 +177,7 @@ def create_enrollment(
     user_id: int,
     enrollment: CreateEnrollmentRequest,
     db: boto3.session.Session = Depends(get_db),
-    redis = Depends(get_redis_db),
+    redis: Redis = Depends(get_redis_db),
     jwt_user: int = Depends(require_x_user),
     jwt_roles: list[Role] = Depends(require_x_roles),
 ) -> CreateEnrollmentResponse:
@@ -194,9 +194,12 @@ def create_enrollment(
     # Verify that the class still has space.
     section_data = section_table.get_item(Key={'section_id' : section_id})
 
+    enrollment_count = section_enrollment_count(db, section_id)
+    waitlist_key = None
+
     if (
         section_data.get('Item') and
-        section_data['Item']['capacity'] > section_data['Item']['enrollment_count'] and
+        section_data['Item']['capacity'] > enrollment_count and
         not section_data['Item']['freeze'] and
         not section_data['Item']['deleted']
     ):
@@ -208,16 +211,14 @@ def create_enrollment(
                 enrollment_status=EnrollmentStatus.ENROLLED
             ).model_dump()
         )
-
-        # increment enrollment_count
-
     else:
         # Otherwise, try to add them to the waitlist
         
         # TODO: use Redis
         # Check redis_insert_sample.py for reference
-        waitlist_key = redis.keys(f"section:{section_id}:waitlist")
-        waitlist_size = redis.zcard(waitlist_key)
+        waitlist_key = redis.keys(f"waitlist:*section_id:{section_id}")
+        print(waitlist_key)
+        waitlist_size = len(waitlist_key)
 
         if (
             section_data.get('Item') and
@@ -236,7 +237,7 @@ def create_enrollment(
             )
     # Retrieve and return enrollment details
     enrollment_data = enrollment_table.get_item(Key={'student_id': user_id, 'section_id' : section_id})
-    waitlist_position = redis.zrank(waitlist_key, user_id)
+    waitlist_position = redis.zrank(waitlist_key, user_id) if waitlist_key is not None else -1
 
     return CreateEnrollmentResponse(
         **enrollment_data.get('Item', {}),
@@ -451,8 +452,25 @@ def delete_section(section_id: int, db: boto3.session.Session = Depends(get_db),
 
     return {"message": "Section deleted successfully"}
 
+# Internal function: get current class enrollment count
+def section_enrollment_count(db, section_id):
+    table = db.Table('Enrollments')
+    response = table.query(
+        KeyConditionExpression=Key('section_id').eq(section_id)
+    )
+    items = response.get("Items", [])
 
-# Endpoint to add a user to the waitlist
+    if items is None:
+        return 0
+    
+    count = 0
+    for i in items:
+        print(i)
+        if i['enrollment_status'] == 'Enrolled':
+            count += 1
+    return count
+
+# Internal function: add user to the waitlist
 async def add_to_waitlist(item: WaitlistItem, redis: Redis = Depends(get_redis_db)):
     waitlist_key = f"waitlist:user_id:{item.user_id}:section_id:{item.section_id}"
 
