@@ -43,7 +43,6 @@ def get_course(
         raise HTTPException(status_code=404, detail="Course not found")
     else:
         return {'response': items}
-    
 
 @app.get("/sections")
 def list_sections(
@@ -335,7 +334,6 @@ def update_section(
     
     return Section(**section_data['Item'])
 
-'''
 @app.delete("/users/{user_id}/enrollments/{section_id}")
 def drop_user_enrollment(
     student_id: int,
