@@ -82,17 +82,17 @@ def insert_enrollments(): # make it correspond to redis' test data
         Enrollment(
             student_id=1,
             section_id=11310,
-            status=EnrollmentStatus.ENROLLED
+            enrollment_status=EnrollmentStatus.ENROLLED
         ).model_dump(),
         Enrollment(
             student_id=5,
             section_id=11011,
-            status=EnrollmentStatus.ENROLLED
+            enrollment_status=EnrollmentStatus.ENROLLED
         ).model_dump(),
         Enrollment(
             student_id=7,
             section_id=11312,
-            status=EnrollmentStatus.ENROLLED
+            enrollment_status=EnrollmentStatus.ENROLLED
         ).model_dump(),
     ]
     insert_items_into_table(table, items)

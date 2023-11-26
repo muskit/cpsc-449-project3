@@ -370,30 +370,45 @@ def update_section(
     sections = database.list_sections(db, [section_id])
     return sections[0]
 
-
+'''
 @app.delete("/users/{user_id}/enrollments/{section_id}")
 def drop_user_enrollment(
-    user_id: int,
+    student_id: int,
     section_id: int,
-    db: sqlite3.Connection = Depends(get_db),
-) -> Enrollment:
-    write_row(
-        db,
-        """
-        UPDATE enrollments
-        SET status = 'Dropped'
-        WHERE
-            user_id = :user_id
-            AND section_id = :section_id
-            AND status = 'Enrolled'
-        """,
-        {"user_id": user_id, "section_id": section_id},
-    )
+    db: boto3.session.Session = Depends(get_db),
+):
+    try:
+        # Update the status for the specified section_id and student_id
+        db.Table('Enrollments').update_item(
+            Key = {"section_id": section_id, "student_id": student_id},
+            UpdateExpression = "SET enrollment_status = :status",
+            ExpressionAttributeValues = {':status': EnrollmentStatus.DROPPED}
+        )
 
-    enrollments = database.list_enrollments(db, [(user_id, section_id)])
-    return enrollments[0]
+        # Retrieve the updated enrollment
+        try:
+        # Retrieve the enrollment for the specified section_id and student_id
+            response = db.Table('Enrollments').get_item(
+                Key={"section_id": section_id, "student_id": student_id}
+            )
+            item = response.get('Item')
 
-'''
+            if item:
+                return {
+                    "section_id": item.get("section_id"),
+                    "student_id": item.get("student_id"),
+                    "enrollment_status": item.get("enrollment_status"),
+                    "date": item.get("date")
+                }
+            else:
+                raise HTTPException(status_code=404, detail="Enrollment not found")
+        except Exception as e:
+            print(e)
+            raise HTTPException(status_code=400, detail="Failed to retrieve enrollment")
+        
+    except Exception as e:
+        raise HTTPException(status_code=409, detail=f"Failed to update section:{e}")
+   
 
 @app.delete("/users/{user_id}/waitlist/{section_id}")
 def drop_user_waitlist(

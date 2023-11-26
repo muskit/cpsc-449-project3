@@ -34,7 +34,7 @@ class EnrollmentStatus(str, Enum):
 class Enrollment(BaseModel):
     student_id: int
     section_id: int
-    status: EnrollmentStatus
+    enrollment_status: EnrollmentStatus
 
 
 class Waitlist(BaseModel):

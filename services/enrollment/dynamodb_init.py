@@ -1,5 +1,4 @@
 from internal.database_dynamo import *
-import boto3
 from time import sleep
 
 ### TODO: Global Secondary Indexes ##
