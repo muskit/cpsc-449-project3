@@ -161,18 +161,18 @@ def list_user_enrollments(
     else:
         return {'response': items}
 
-''' To tired to think this one out
-@app.get("/users/{user_id}/sections")
+
+app.get("/users/{user_id}/enrollments")
 def list_user_sections(
     user_id: int,
     type: ListUserSectionsType = ListUserSectionsType.ALL,
     db: boto3.session.Session = Depends(get_db),
 ):
-    
-    table = db.Table('Enrollment')
+    table_name = 'Enrollments'
+    table = db.resource('dynamodb').Table(table_name)
     
     response = table.query(
-        KeyConditionExpression=Key('section_id').eq(section_id),
+        KeyConditionExpression=Key('student_id').eq(user_id),
         FilterExpression=Attr('status').eq('enrolled')
     )
 
@@ -182,9 +182,10 @@ def list_user_sections(
         raise HTTPException(status_code=404, detail="No enrolled students found for the section")
     else:
         return {'enrolled_students': items}
+  
    
 
-
+''' To tired to think this one out
 @app.get("/users/{user_id}/waitlist")
 def list_user_waitlist(
     user_id: int,
