@@ -201,91 +201,88 @@ def list_user_waitlist(
 def create_enrollment(
     user_id: int,
     enrollment: CreateEnrollmentRequest,
-    db: sqlite3.Connection = Depends(get_db),
+    db: boto3.session.Session = Depends(get_db),
     jwt_user: int = Depends(require_x_user),
     jwt_roles: list[Role] = Depends(require_x_roles),
 ) -> CreateEnrollmentResponse:
+    
     if Role.REGISTRAR not in jwt_roles and jwt_user != user_id:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    d = {
-        "user": user_id,
-        "section": enrollment.section,
-    }
+    # DynamoDB table
+    enrollment_table = db.Table('Enrollment')
+    section_table = db.Table('Sections')
+    waitlist_table = db.Table('Waitlist')
 
-    waitlist_position = None
+    section_id = enrollment.section
 
     # Verify that the class still has space.
-    id = fetch_row(
-        db,
-        """
-        SELECT id
-        FROM sections as s
-        WHERE s.id = :section
-        AND s.capacity > (SELECT COUNT(*) FROM enrollments WHERE section_id = :section)
-        AND s.freeze = FALSE
-        AND s.deleted = FALSE
-        """,
-        d,
-    )
-    if id:
+    section_data = section_table.get_item(Key={'id' : section_id})
+
+    if (
+        section_data.get('Item') and
+        section_data['Item']['capacity'] > section_data['Item']['enrollment_count'] and
+        not section_data['Item']['freeze'] and
+        not section_data['Item']['deleted']
+    ):
         # If there is space, enroll the student.
-        write_row(
-            db,
-            """
-            INSERT INTO enrollments (user_id, section_id, status, grade, date)
-            VALUES(:user, :section, 'Enrolled', NULL, CURRENT_TIMESTAMP)
-            """,
-            d,
+        enrollment_table.put_item(
+            Item={
+                'student_id': user_id,
+                'section_id' : section_id,
+                'status' : 'Enrolled',
+                'grade' : None,
+                'date' : 'CURRENT_TIMESTAMP',
+            }
         )
+        
     else:
         # Otherwise, try to add them to the waitlist.
-        id = fetch_row(
-            db,
-            """
-            SELECT id
-            FROM sections as s
-            WHERE s.id = :section
-            AND s.waitlist_capacity > (SELECT COUNT(*) FROM waitlist WHERE section_id = :section)
-            AND (SELECT COUNT(*) FROM waitlist WHERE user_id = :user) < 3
-            AND s.freeze = FALSE
-            AND s.deleted = FALSE
-            """,
-            d,
-        )
-        if id:
-            row = fetch_row(
-                db,
-                """
-                INSERT INTO waitlist (user_id, section_id, position, date)
-                VALUES(:user, :section, (SELECT COUNT(*) FROM waitlist WHERE section_id = :section), CURRENT_TIMESTAMP)
-                RETURNING position
-                """,
-                d,
+        waitlist_data = waitlist_table.get_item(Key={'student_id': user_id, 'section_id': section_id})
+
+        if (
+            section_data.get('Item') and
+            section_data['Item']['waitlist_capacity'] > section_data['Item']['waitlist_count'] and
+            waitlist_data.get('Item') and
+            waitlist_data['Item']['position'] < 3 and
+            not section_data['Item']['freeze'] and
+            not section_data['Item']['deleted']
+        ):
+            # Add user to the waitlist
+            waitlist_table.put_item(
+                Item ={
+                    'student_id': user_id,
+                    'section_id': section_id,
+                    'position': waitlist_data['Item']['waitlist_count'] + 1,
+                    'date': 'CURRENT_TIMESTAMP',
+                }
             )
 
-            # Read back the waitlist position.
-            assert row
-            waitlist_position = row["waitlist.position"]
 
             # Ensure that there's also a waitlist enrollment.
-            write_row(
-                db,
-                """
-                INSERT INTO enrollments (user_id, section_id, status, grade, date)
-                VALUES(:user, :section, 'Waitlisted', NULL, CURRENT_TIMESTAMP)
-                """,
-                d,
+            enrollment_table.put_item(
+                Item={
+                    'student_id': user_id,
+                    'section_id': section_id,
+                    'status': 'WAitlisted',
+                    'grade': None,
+                    'date' : 'CURRENT_TIMESTAMP',
+                }
             )
+
         else:
             raise HTTPException(
                 status_code=400,
                 detail="Section is full and waitlist is full.",
             )
+    # Retrieve and return enrollment details
 
-    enrollments = database.list_enrollments(db, [(d["user"], d["section"])])
+    enrollment_data = enrollment_table.get_item(Key={'student_id': user_id, 'section_id' : section_id})
+
+    waitlist_position = waitlist_data.get('Item', {}).get('position', None)
+
     return CreateEnrollmentResponse(
-        **dict(enrollments[0]),
+        **enrollment_data.get('Item', {}),
         waitlist_position=waitlist_position,
     )
 '''
@@ -483,7 +480,7 @@ def delete_section(section_id: int, db: sqlite3.Connection = Depends(get_db)):
     )
     for u in uw:
         drop_user_waitlist(u[0], section_id, db)
-'''
+
 
 # Endpoint to add a user to the waitlist
 @app.post("/waitlist/")
@@ -526,3 +523,4 @@ async def delete_from_waitlist(user_id:int, section_id:int, redis: Redis = Depen
 for route in app.routes:
     if isinstance(route, APIRoute):
         route.operation_id = route.name
+
