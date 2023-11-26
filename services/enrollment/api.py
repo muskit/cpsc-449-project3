@@ -44,29 +44,6 @@ def get_course(
     else:
         return {'response': items}
     
-'''
-@app.get("/courses/{course_id}/waitlist")
-def get_course_waitlist(
-    course_id: int,
-    db: sqlite3.Connection = Depends(get_db),
-) -> GetCourseWaitlistResponse:
-    rows = fetch_rows(
-        db,
-        """
-        SELECT waitlist.user_id, sections.id
-        FROM waitlist
-        INNER JOIN sections ON waitlist.section_id = sections.id
-        WHERE sections.course_id = ? AND sections.deleted = FALSE
-        """,
-        (course_id,),
-    )
-    return GetCourseWaitlistResponse(
-        waitlist=database.list_waitlist(
-            db,
-            [(row["waitlist.user_id"], row["sections.id"]) for row in rows],
-        )
-    )
-'''
 
 @app.get("/sections")
 def list_sections(
@@ -335,7 +312,7 @@ def update_section(
     if len(v) == 0:
         raise HTTPException(
             status_code=400,
-            detail="No fields provided to update.",
+            detail = "No fields provided to update.",
         )
 
     q = q[:-2]  # remove trailing comma
