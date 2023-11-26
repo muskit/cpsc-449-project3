@@ -2,7 +2,7 @@ from typing import Generator
 import boto3
 from botocore.exceptions import ClientError
 
-def get_db():
+def get_db() -> Generator[any, None, None]:
 	return boto3.resource('dynamodb', endpoint_url = 'http://localhost:8000')
 
 def table_exists(db, table_name):
